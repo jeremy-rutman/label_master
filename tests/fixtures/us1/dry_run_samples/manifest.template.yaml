@@ -1,0 +1,43 @@
+# Template for known-bbox dry-run verification samples.
+# Copy this file to tests/fixtures/us1/dry_run_samples/<sample_id>/manifest.yaml
+# and replace all placeholder values.
+
+manifest_version: 1
+sample_id: "replace_with_sample_id"
+description: "Short description of what this sample validates"
+
+# Path may be relative to this manifest directory or absolute.
+dataset_root: "./dataset"
+
+expected:
+  # Accepted values for v1: coco, yolo
+  source_format: "coco"
+  inference:
+    top_candidate: "coco"
+    min_confidence: 0.90
+    allow_ambiguous: false
+  validation:
+    expected_result: "pass" # pass | fail
+    max_invalid_annotations: 0
+
+bbox_checks:
+  # Examples:
+  # - coco source bboxes: xywh_pixels
+  # - yolo source bboxes: normalized_cxcywh
+  coordinate_space: "xywh_pixels"
+  tolerance:
+    abs: 0.0
+    rel: 0.0
+  expected_boxes:
+    - image: "images/example_0001.jpg"
+      class_id: 0
+      bbox: [120.0, 48.0, 64.0, 72.0]
+      annotation_ref: "replace_with_annotation_id"
+      required: true
+
+dry_run_expectations:
+  expect_converted_outputs_written: false
+  expected_exit_code: 0
+
+notes:
+  - "Add one or more boxes per class for regression coverage."

@@ -1,0 +1,8 @@
+{
+  "schema_version": "1.0",
+  "run_id": "run-legacy",
+  "mode": "infer",
+  "input_path": "/tmp/input",
+  "src_format": "auto",
+  "created_at": "2026-03-03T00:00:00Z"
+}

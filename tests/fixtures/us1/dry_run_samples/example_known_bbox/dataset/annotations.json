@@ -1,0 +1,14 @@
+{
+  "images": [
+    {"id": "img-1", "file_name": "images/example_0001.jpg", "width": 640, "height": 480},
+    {"id": "img-2", "file_name": "images/example_0002.jpg", "width": 640, "height": 480}
+  ],
+  "annotations": [
+    {"id": "ann-0001", "image_id": "img-1", "category_id": 0, "bbox": [120.0, 48.0, 64.0, 72.0], "iscrowd": 0},
+    {"id": "ann-0002", "image_id": "img-2", "category_id": 1, "bbox": [20.0, 16.0, 40.0, 28.0], "iscrowd": 0}
+  ],
+  "categories": [
+    {"id": 0, "name": "drone", "supercategory": "target"},
+    {"id": 1, "name": "bird", "supercategory": "target"}
+  ]
+}

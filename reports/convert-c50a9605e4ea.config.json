@@ -1,0 +1,15 @@
+{
+  "created_at": "2026-03-04T19:01:31.130483Z",
+  "dry_run": false,
+  "dst_format": "coco",
+  "input_path": "tests/fixtures/us1/yolo_minimal",
+  "mapping_file": null,
+  "mode": "convert",
+  "output_path": "/tmp/pytest-of-jeremy/pytest-6/test_yolo_to_coco_ordering_is_0/out_a",
+  "provider": null,
+  "run_id": "convert-c50a9605e4ea",
+  "schema_version": "1.1",
+  "source_ref": null,
+  "src_format": "yolo",
+  "unmapped_policy": "error"
+}

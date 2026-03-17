@@ -1,0 +1,33 @@
+manifest_version: 1
+sample_id: "laser_turret_anti_uav_rgb_trainval_obsidian"
+description: "YOLO sample from anti_UAV_RGB_trainval_obsidian (test split)"
+dataset_root: "/home/jeremy/data/drone_detect/laser_turret/yolo_models/datasets/anti_UAV_RGB_trainval_obsidian"
+
+expected:
+  source_format: "yolo"
+  inference:
+    top_candidate: "yolo"
+    min_confidence: 0.50
+    allow_ambiguous: false
+  validation:
+    expected_result: "pass"
+    max_invalid_annotations: 0
+
+bbox_checks:
+  coordinate_space: "normalized_cxcywh"
+  tolerance:
+    abs: 0.000001
+    rel: 0.000001
+  expected_boxes:
+    - image: "test/images/anti_UAV_RGB_trainval_wg2022_ir_049_split_02__001349.jpg"
+      class_id: 3
+      bbox: [0.382812, 0.333008, 0.006250, 0.005859]
+      annotation_ref: "test/labels/anti_UAV_RGB_trainval_wg2022_ir_049_split_02__001349.txt:1"
+      required: true
+
+dry_run_expectations:
+  expect_converted_outputs_written: false
+  expected_exit_code: 0
+
+notes:
+  - "Derived from first non-empty label row in the provided dataset."

@@ -1,0 +1,153 @@
+{
+  "images": [
+    {
+      "width": 1920,
+      "height": 1080,
+      "id": 0,
+      "file_name": "images/90f04c9f-Drone_Detection_screenshot_05.12.2025.png"
+    },
+    {
+      "width": 720,
+      "height": 400,
+      "id": 1,
+      "file_name": "images/46c32d34-example_drone_picture_bw.jpg"
+    }
+  ],
+  "categories": [
+    {
+      "id": 0,
+      "name": "Airplane"
+    },
+    {
+      "id": 1,
+      "name": "Car"
+    },
+    {
+      "id": 2,
+      "name": "bird"
+    },
+    {
+      "id": 3,
+      "name": "drone"
+    },
+    {
+      "id": 4,
+      "name": "human"
+    }
+  ],
+  "annotations": [
+    {
+      "id": 0,
+      "image_id": 0,
+      "category_id": 4,
+      "segmentation": [],
+      "bbox": [
+        1758.1090909090913,
+        481.7454545454545,
+        161.89090909090868,
+        219.92727272727276
+      ],
+      "ignore": 0,
+      "iscrowd": 0,
+      "area": 35604.22611570245
+    },
+    {
+      "id": 1,
+      "image_id": 1,
+      "category_id": 3,
+      "segmentation": [],
+      "bbox": [
+        145.7789979409746,
+        307.3713109128346,
+        196.18393960192174,
+        62.2649279341112
+      ],
+      "ignore": 0,
+      "iscrowd": 0,
+      "area": 12215.378861143681
+    },
+    {
+      "id": 2,
+      "image_id": 1,
+      "category_id": 2,
+      "segmentation": [],
+      "bbox": [
+        166.38036809815952,
+        55.4601226993865,
+        61.34969325153374,
+        47.607361963190186
+      ],
+      "ignore": 0,
+      "iscrowd": 0,
+      "area": 2920.6970529564533
+    },
+    {
+      "id": 3,
+      "image_id": 1,
+      "category_id": 2,
+      "segmentation": [],
+      "bbox": [
+        222.3312883435583,
+        37.30061349693251,
+        49.57055214723924,
+        33.37423312883436
+      ],
+      "ignore": 0,
+      "iscrowd": 0,
+      "area": 1654.3791636870033
+    },
+    {
+      "id": 4,
+      "image_id": 1,
+      "category_id": 2,
+      "segmentation": [],
+      "bbox": [
+        287.11656441717787,
+        23.558282208588956,
+        48.58895705521471,
+        36.809815950920246
+      ],
+      "ignore": 0,
+      "iscrowd": 0,
+      "area": 1788.5505664496213
+    },
+    {
+      "id": 5,
+      "image_id": 1,
+      "category_id": 2,
+      "segmentation": [],
+      "bbox": [
+        331.28834355828224,
+        32.39263803680982,
+        54.47852760736195,
+        33.865030674846615
+      ],
+      "ignore": 0,
+      "iscrowd": 0,
+      "area": 1844.9170085437904
+    },
+    {
+      "id": 6,
+      "image_id": 1,
+      "category_id": 2,
+      "segmentation": [],
+      "bbox": [
+        353.86503067484665,
+        58.895705521472394,
+        55.46012269938648,
+        34.84662576687117
+      ],
+      "ignore": 0,
+      "iscrowd": 0,
+      "area": 1932.5981406902777
+    }
+  ],
+  "info": {
+    "year": 2026,
+    "version": "1.0",
+    "description": "",
+    "contributor": "Label Studio",
+    "url": "",
+    "date_created": "2026-03-04 20:20:47.539041"
+  }
+}

@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Annotation Converter</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style type="text/tailwindcss">
+        :root {
+            --primary-color: #FF4B4B;
+            --bg-color: #FFFFFF;
+            --text-main: #31333F;
+            --border-color: rgba(49, 51, 63, 0.2);
+            --sidebar-bg: #F0F2F6;
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+            color: var(--text-main);
+            background-color: var(--bg-color);
+        }
+        .st-input {
+            @apply w-full rounded-md border border-[var(--border-color)] bg-white px-3 py-2 text-sm focus:border-[var(--primary-color)] focus:outline-none focus:ring-1 focus:ring-[var(--primary-color)];
+        }
+        .st-btn-secondary {
+            @apply inline-flex items-center justify-center rounded-md border border-[var(--border-color)] bg-white px-4 py-2 text-sm font-medium text-[var(--text-main)] shadow-sm hover:border-[var(--primary-color)] hover:text-[var(--primary-color)] focus:outline-none;
+        }
+        .st-btn-primary {
+            @apply inline-flex items-center justify-center rounded-md border border-transparent bg-[var(--primary-color)] px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-opacity-90 focus:outline-none;
+        }
+        .hide-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .hide-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="flex flex-col h-screen overflow-hidden antialiased">
+<header class="flex items-center justify-between px-4 py-3 border-b border-[var(--border-color)] bg-white shrink-0">
+<div class="flex items-center gap-2 text-[var(--text-main)]">
+<span class="material-symbols-outlined text-2xl cursor-pointer">menu</span>
+<h1 class="text-lg font-semibold tracking-tight">Annotation Converter</h1>
+</div>
+<div class="flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-green-500"></span>
+<span class="text-xs font-medium text-gray-500 uppercase">Localhost</span>
+</div>
+</header>
+<div class="flex flex-col flex-1 overflow-hidden relative">
+<div class="border-b border-[var(--border-color)] bg-white shrink-0">
+<nav aria-label="Tabs" class="flex overflow-x-auto hide-scrollbar px-2">
+<a class="whitespace-nowrap py-3 px-4 border-b-2 border-transparent text-gray-500 hover:text-gray-700 text-sm font-medium" href="#">
+                    1. Project Setup
+                </a>
+<a class="whitespace-nowrap py-3 px-4 border-b-2 border-transparent text-gray-500 hover:text-gray-700 text-sm font-medium" href="#">
+                    2. Format &amp; Mapping
+                </a>
+<a class="whitespace-nowrap py-3 px-4 border-b-2 border-[var(--primary-color)] text-[var(--text-main)] text-sm font-medium" href="#">
+                    3. Run &amp; Report
+                </a>
+</nav>
+</div>
+<main class="flex-1 overflow-y-auto p-4 space-y-6 bg-white">
+<div class="space-y-1">
+<h2 class="text-xl font-bold">3. Run &amp; Report</h2>
+<p class="text-sm text-gray-500">Execute the conversion process and review the final summary.</p>
+</div>
+<button class="st-btn-primary w-full py-3 text-base flex items-center justify-center opacity-75 cursor-not-allowed">
+<span class="material-symbols-outlined mr-2">play_arrow</span>
+    Start Conversion
+</button>
+<div class="space-y-2">
+<div class="flex justify-between text-sm font-medium text-[var(--text-main)]">
+<span>Conversion Progress</span>
+<span>100%</span>
+</div>
+<div class="w-full bg-gray-200 rounded-full h-2.5">
+<div class="bg-[var(--primary-color)] h-2.5 rounded-full" style="width: 100%"></div>
+</div>
+</div>
+<div class="space-y-2">
+<label class="block text-sm font-medium text-[var(--text-main)]">Console Log</label>
+<div class="bg-[#1E1E1E] text-green-400 font-mono text-xs p-3 rounded-md h-40 overflow-y-auto border border-[var(--border-color)]">
+[INFO] Starting conversion process...
+[INFO] Source format: COCO JSON -&gt; Target format: YOLO
+[INFO] Validating output directory...
+[INFO] Processing image 1/1000...
+[INFO] Processing image 45/1000...
+[INFO] Processing image 500/1000...
+[WARN] Image 612 missing annotation file. Skipping.
+[INFO] Processing image 1000/1000...
+[SUCCESS] Conversion completed successfully.
+    </div>
+</div>
+<div class="space-y-4 bg-[var(--sidebar-bg)] p-4 rounded-lg border border-[var(--border-color)]">
+<div class="flex items-center gap-2 border-b border-[var(--border-color)] pb-3">
+<span class="material-symbols-outlined text-green-600">task_alt</span>
+<h3 class="text-md font-semibold text-[var(--text-main)]">Summary Report</h3>
+</div>
+<div class="grid grid-cols-2 gap-3">
+<div class="bg-white p-3 rounded border border-[var(--border-color)] text-center flex flex-col justify-center">
+<div class="text-2xl font-bold text-[var(--primary-color)]">1000</div>
+<div class="text-[10px] text-gray-500 mt-1 uppercase tracking-wider font-semibold">Total Images Processed</div>
+</div>
+<div class="bg-white p-3 rounded border border-[var(--border-color)] text-center flex flex-col justify-center">
+<div class="text-2xl font-bold text-[var(--text-main)]">4521</div>
+<div class="text-[10px] text-gray-500 mt-1 uppercase tracking-wider font-semibold">Labels Converted</div>
+</div>
+<div class="bg-white p-3 rounded border border-[var(--border-color)] col-span-2 flex items-center justify-between">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-yellow-500 text-[20px]">warning</span>
+<span class="text-sm font-medium text-[var(--text-main)]">Errors / Warnings</span>
+</div>
+<div class="text-lg font-bold text-[var(--text-main)]">0 / 1</div>
+</div>
+</div>
+</div>
+<div class="pt-2 pb-8">
+<button class="st-btn-secondary w-full py-2.5">
+<span class="material-symbols-outlined mr-2 text-[18px]">folder_open</span>
+        Open Output Directory
+    </button>
+</div>
+</main>
+</div>
+</body></html>

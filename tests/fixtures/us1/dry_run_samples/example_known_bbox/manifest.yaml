@@ -1,0 +1,38 @@
+manifest_version: 1
+sample_id: "example_known_bbox"
+description: "Known-bbox manifest for the user-provided coco_minimal Label Studio sample"
+dataset_root: "../../coco_minimal"
+
+expected:
+  source_format: "coco"
+  inference:
+    top_candidate: "coco"
+    min_confidence: 0.95
+    allow_ambiguous: false
+  validation:
+    expected_result: "pass"
+    max_invalid_annotations: 0
+
+bbox_checks:
+  coordinate_space: "xywh_pixels"
+  tolerance:
+    abs: 0.0001
+    rel: 0.0
+  expected_boxes:
+    - image: "images/90f04c9f-Drone_Detection_screenshot_05.12.2025.png"
+      class_id: 4
+      bbox: [1758.1090909090913, 481.7454545454545, 161.89090909090868, 219.92727272727276]
+      annotation_ref: "0"
+      required: true
+    - image: "images/46c32d34-example_drone_picture_bw.jpg"
+      class_id: 3
+      bbox: [145.7789979409746, 307.3713109128346, 196.18393960192174, 62.2649279341112]
+      annotation_ref: "1"
+      required: true
+
+dry_run_expectations:
+  expect_converted_outputs_written: false
+  expected_exit_code: 0
+
+notes:
+  - "Expected boxes were updated from the Label Studio export in tests/fixtures/us1/coco_minimal."

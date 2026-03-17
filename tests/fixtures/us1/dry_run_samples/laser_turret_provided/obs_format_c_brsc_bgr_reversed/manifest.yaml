@@ -1,0 +1,33 @@
+manifest_version: 1
+sample_id: "laser_turret_obs_format_c_brsc_bgr_reversed"
+description: "YOLO sample from obs_format C_brsc... test/bgr_reversed split"
+dataset_root: "/home/jeremy/data/drone_detect/laser_turret/yolo_models/datasets/obs_format/C_brsc_dronevsbird_usc_kitware_mileqpt_furkanb_maciullo/test"
+
+expected:
+  source_format: "yolo"
+  inference:
+    top_candidate: "yolo"
+    min_confidence: 0.50
+    allow_ambiguous: false
+  validation:
+    expected_result: "pass"
+    max_invalid_annotations: 0
+
+bbox_checks:
+  coordinate_space: "normalized_cxcywh"
+  tolerance:
+    abs: 0.000001
+    rel: 0.000001
+  expected_boxes:
+    - image: "bgr_reversed_images/pos_G3P47190_rgb.jpg"
+      class_id: 3
+      bbox: [0.367188, 0.487500, 0.315625, 0.541667]
+      annotation_ref: "bgr_reversed_labels/pos_G3P47190_rgb.txt:1"
+      required: true
+
+dry_run_expectations:
+  expect_converted_outputs_written: false
+  expected_exit_code: 0
+
+notes:
+  - "Derived from first non-empty label row in the provided dataset."

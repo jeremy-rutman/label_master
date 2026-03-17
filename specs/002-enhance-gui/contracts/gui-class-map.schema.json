@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://label-master.local/schemas/gui-class-map.schema.json",
+  "title": "GuiClassMapArtifact",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["class_map"],
+  "properties": {
+    "class_map": {
+      "type": "object",
+      "description": "Stringified source class IDs to destination class IDs (or null for drop).",
+      "propertyNames": {
+        "pattern": "^-?[0-9]+$"
+      },
+      "additionalProperties": {
+        "type": ["integer", "null"]
+      }
+    }
+  }
+}

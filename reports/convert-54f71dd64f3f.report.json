@@ -1,0 +1,24 @@
+{
+  "contention_events": [],
+  "dst_format": "coco",
+  "git_commit": null,
+  "input_path": "tests/fixtures/us1/yolo_minimal",
+  "output_path": "/tmp/pytest-of-jeremy/pytest-19/test_yolo_to_coco_ordering_is_0/out_b",
+  "provenance": [],
+  "run_id": "convert-54f71dd64f3f",
+  "schema_version": "1.1",
+  "src_format": "yolo",
+  "status": "completed",
+  "summary_counts": {
+    "annotations_in": 2,
+    "annotations_out": 2,
+    "dropped": 0,
+    "images": 2,
+    "invalid": 0,
+    "skipped": 0,
+    "unmapped": 0
+  },
+  "timestamp": "2026-03-05T21:59:16.166715Z",
+  "tool_version": "0.1.0",
+  "warnings": []
+}

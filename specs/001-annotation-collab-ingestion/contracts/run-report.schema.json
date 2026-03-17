@@ -1,0 +1,137 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://label-master.local/schemas/run-report.schema.json",
+  "title": "RunReport",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "run_id",
+    "timestamp",
+    "status",
+    "input_path",
+    "summary_counts",
+    "warnings",
+    "contention_events",
+    "provenance"
+  ],
+  "properties": {
+    "run_id": { "type": "string", "minLength": 1 },
+    "timestamp": { "type": "string", "format": "date-time" },
+    "status": {
+      "type": "string",
+      "enum": ["completed", "failed"]
+    },
+    "tool_version": { "type": "string" },
+    "git_commit": { "type": ["string", "null"] },
+    "input_path": { "type": "string" },
+    "output_path": { "type": ["string", "null"] },
+    "src_format": {
+      "type": ["string", "null"],
+      "enum": ["auto", "coco", "yolo", null]
+    },
+    "dst_format": {
+      "type": ["string", "null"],
+      "enum": ["coco", "yolo", null]
+    },
+    "summary_counts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "images",
+        "annotations_in",
+        "annotations_out",
+        "dropped",
+        "unmapped",
+        "invalid",
+        "skipped"
+      ],
+      "properties": {
+        "images": { "type": "integer", "minimum": 0 },
+        "annotations_in": { "type": "integer", "minimum": 0 },
+        "annotations_out": { "type": "integer", "minimum": 0 },
+        "dropped": { "type": "integer", "minimum": 0 },
+        "unmapped": { "type": "integer", "minimum": 0 },
+        "invalid": { "type": "integer", "minimum": 0 },
+        "skipped": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "warnings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["code", "message", "severity"],
+        "properties": {
+          "code": { "type": "string" },
+          "message": { "type": "string" },
+          "severity": {
+            "type": "string",
+            "enum": ["info", "warning", "error"]
+          },
+          "context": {
+            "type": "object",
+            "additionalProperties": { "type": "string" }
+          }
+        }
+      }
+    },
+    "contention_events": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "output_path",
+          "run_id",
+          "competing_run_id",
+          "resolution"
+        ],
+        "properties": {
+          "output_path": { "type": "string" },
+          "run_id": { "type": "string" },
+          "competing_run_id": { "type": "string" },
+          "resolution": {
+            "type": "string",
+            "enum": ["last_write_wins"]
+          },
+          "resolved_at": { "type": "string", "format": "date-time" }
+        }
+      }
+    },
+    "provenance": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "provider",
+          "source_ref",
+          "retrieved_at",
+          "integrity_status",
+          "import_job_id"
+        ],
+        "properties": {
+          "provider": {
+            "type": "string",
+            "enum": ["kaggle", "roboflow", "github", "direct_url"]
+          },
+          "source_ref": { "type": "string" },
+          "protocol": {
+            "type": ["string", "null"],
+            "enum": ["https", "http", "file", null]
+          },
+          "retrieved_at": { "type": "string", "format": "date-time" },
+          "integrity_status": {
+            "type": "string",
+            "enum": ["passed", "failed"]
+          },
+          "checksum_status": {
+            "type": ["string", "null"],
+            "enum": ["passed", "failed", "unknown", null]
+          },
+          "import_job_id": { "type": "string" }
+        }
+      }
+    }
+  }
+}

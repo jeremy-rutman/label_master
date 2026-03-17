@@ -1,0 +1,34 @@
+{
+  "contention_events": [],
+  "dst_format": null,
+  "git_commit": null,
+  "input_path": "tests/fixtures/us3/provider_sample",
+  "output_path": "/tmp/pytest-of-jeremy/pytest-17/test_cli_import_accepts_provid0/out/provider_sample",
+  "provenance": [
+    {
+      "checksum_status": "unknown",
+      "import_job_id": "import-1dd480d654fb",
+      "integrity_status": "passed",
+      "protocol": null,
+      "provider": "kaggle",
+      "retrieved_at": "2026-03-05T21:44:47.036762Z",
+      "source_ref": "tests/fixtures/us3/provider_sample"
+    }
+  ],
+  "run_id": "import-1dd480d654fb",
+  "schema_version": "1.1",
+  "src_format": null,
+  "status": "completed",
+  "summary_counts": {
+    "annotations_in": 0,
+    "annotations_out": 0,
+    "dropped": 0,
+    "images": 0,
+    "invalid": 0,
+    "skipped": 0,
+    "unmapped": 0
+  },
+  "timestamp": "2026-03-05T21:44:47.036742Z",
+  "tool_version": "0.1.0",
+  "warnings": []
+}

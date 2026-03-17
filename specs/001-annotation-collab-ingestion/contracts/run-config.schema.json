@@ -1,0 +1,91 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://label-master.local/schemas/run-config.schema.json",
+  "title": "RunConfig",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "run_id",
+    "mode",
+    "input_path",
+    "src_format",
+    "created_at"
+  ],
+  "properties": {
+    "run_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "mode": {
+      "type": "string",
+      "enum": ["infer", "validate", "convert", "remap", "import"]
+    },
+    "input_path": {
+      "type": "string",
+      "minLength": 1
+    },
+    "output_path": {
+      "type": ["string", "null"]
+    },
+    "src_format": {
+      "type": "string",
+      "enum": ["auto", "coco", "yolo"]
+    },
+    "dst_format": {
+      "type": ["string", "null"],
+      "enum": ["coco", "yolo", null]
+    },
+    "mapping_file": {
+      "type": ["string", "null"]
+    },
+    "unmapped_policy": {
+      "type": "string",
+      "enum": ["error", "drop", "identity"],
+      "default": "error"
+    },
+    "dry_run": {
+      "type": "boolean",
+      "default": false
+    },
+    "provider": {
+      "type": ["string", "null"],
+      "enum": ["kaggle", "roboflow", "github", "direct_url", null]
+    },
+    "source_ref": {
+      "type": ["string", "null"]
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": { "mode": { "const": "convert" } },
+        "required": ["mode"]
+      },
+      "then": {
+        "required": ["output_path", "dst_format"]
+      }
+    },
+    {
+      "if": {
+        "properties": { "mode": { "const": "remap" } },
+        "required": ["mode"]
+      },
+      "then": {
+        "required": ["output_path", "mapping_file"]
+      }
+    },
+    {
+      "if": {
+        "properties": { "mode": { "const": "import" } },
+        "required": ["mode"]
+      },
+      "then": {
+        "required": ["provider", "source_ref", "output_path"]
+      }
+    }
+  ]
+}

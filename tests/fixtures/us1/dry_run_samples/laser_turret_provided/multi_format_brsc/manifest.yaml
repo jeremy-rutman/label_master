@@ -1,0 +1,33 @@
+manifest_version: 1
+sample_id: "laser_turret_multi_format_brsc"
+description: "YOLO sample from multi_format_test/brsc"
+dataset_root: "/home/jeremy/data/drone_detect/laser_turret/yolo_models/datasets/multi_format_test/brsc"
+
+expected:
+  source_format: "yolo"
+  inference:
+    top_candidate: "yolo"
+    min_confidence: 0.50
+    allow_ambiguous: false
+  validation:
+    expected_result: "pass"
+    max_invalid_annotations: 0
+
+bbox_checks:
+  coordinate_space: "normalized_cxcywh"
+  tolerance:
+    abs: 0.000001
+    rel: 0.000001
+  expected_boxes:
+    - image: "images/54a636b2-vlcsnap-2023-03-09-09h56m27s404.png"
+      class_id: 3
+      bbox: [0.402101, 0.589916, 0.024370, 0.025210]
+      annotation_ref: "labels/54a636b2-vlcsnap-2023-03-09-09h56m27s404.txt:1"
+      required: true
+
+dry_run_expectations:
+  expect_converted_outputs_written: false
+  expected_exit_code: 0
+
+notes:
+  - "Derived from first non-empty label row in the provided dataset."

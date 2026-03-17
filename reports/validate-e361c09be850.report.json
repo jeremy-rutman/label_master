@@ -1,0 +1,24 @@
+{
+  "contention_events": [],
+  "dst_format": null,
+  "git_commit": null,
+  "input_path": "/home/jeremy/Documents/label_master/tests/fixtures/us1/coco_minimal",
+  "output_path": null,
+  "provenance": [],
+  "run_id": "validate-e361c09be850",
+  "schema_version": "1.1",
+  "src_format": "coco",
+  "status": "completed",
+  "summary_counts": {
+    "annotations_in": 7,
+    "annotations_out": 7,
+    "dropped": 0,
+    "images": 2,
+    "invalid": 0,
+    "skipped": 0,
+    "unmapped": 0
+  },
+  "timestamp": "2026-03-05T21:05:53.959694Z",
+  "tool_version": "0.1.0",
+  "warnings": []
+}

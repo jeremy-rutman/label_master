@@ -1,0 +1,15 @@
+{
+  "created_at": "2026-03-05T21:24:22.471790Z",
+  "dry_run": true,
+  "dst_format": "yolo",
+  "input_path": "/home/jeremy/Documents/label_master/tests/fixtures/us1/coco_minimal",
+  "mapping_file": null,
+  "mode": "convert",
+  "output_path": "/tmp/pytest-of-jeremy/pytest-8/test_convert_dry_run_does_not_0/converted",
+  "provider": null,
+  "run_id": "convert-3fd3465a0673",
+  "schema_version": "1.1",
+  "source_ref": null,
+  "src_format": "coco",
+  "unmapped_policy": "error"
+}

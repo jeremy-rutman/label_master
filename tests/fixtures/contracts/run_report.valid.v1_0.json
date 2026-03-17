@@ -1,0 +1,28 @@
+{
+  "schema_version": "1.0",
+  "run_id": "run-legacy",
+  "timestamp": "2026-03-03T00:00:00Z",
+  "status": "completed",
+  "input_path": "/tmp/input",
+  "summary_counts": {
+    "images": 1,
+    "annotations_in": 1,
+    "annotations_out": 1,
+    "dropped": 0,
+    "unmapped": 0,
+    "invalid": 0,
+    "skipped": 0
+  },
+  "warnings": [],
+  "contention_events": [],
+  "provenance": [
+    {
+      "provider": "direct_url",
+      "source_ref": "https://example.test/data.zip",
+      "protocol": "https",
+      "retrieved_at": "2026-03-03T00:00:00Z",
+      "integrity_status": "passed",
+      "import_job_id": "job-1"
+    }
+  ]
+}

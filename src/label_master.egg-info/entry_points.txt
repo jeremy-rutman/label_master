@@ -1,0 +1,2 @@
+[console_scripts]
+annobox = label_master.interfaces.cli.main:main

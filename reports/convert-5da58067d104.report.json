@@ -1,0 +1,24 @@
+{
+  "contention_events": [],
+  "dst_format": "yolo",
+  "git_commit": null,
+  "input_path": "/home/jeremy/data/drone_detect/label_master/tests/fixtures/us1/coco_minimal",
+  "output_path": "/tmp/pytest-of-jeremy/pytest-1/test_convert_dry_run_does_not_0/converted",
+  "provenance": [],
+  "run_id": "convert-5da58067d104",
+  "schema_version": "1.1",
+  "src_format": "coco",
+  "status": "completed",
+  "summary_counts": {
+    "annotations_in": 3,
+    "annotations_out": 3,
+    "dropped": 0,
+    "images": 2,
+    "invalid": 0,
+    "skipped": 0,
+    "unmapped": 0
+  },
+  "timestamp": "2026-03-04T18:29:02.931796Z",
+  "tool_version": "0.1.0",
+  "warnings": []
+}

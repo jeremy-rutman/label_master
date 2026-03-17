@@ -1,0 +1,59 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "label-master"
+version = "0.1.0"
+description = "Bounding-box annotation conversion and ingestion toolkit"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "typer>=0.12,<1",
+  "streamlit>=1.40,<2",
+  "pydantic>=2.7,<3",
+  "PyYAML>=6,<7",
+  "jsonschema>=4.22,<5",
+  "httpx>=0.27,<1",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8,<9",
+  "pytest-cov>=5,<6",
+  "hypothesis>=6.110,<7",
+  "ruff>=0.6,<1",
+  "mypy>=1.11,<2",
+]
+
+[project.scripts]
+annobox = "label_master.interfaces.cli.main:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+addopts = "-q"
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+ignore = ["E501", "B008", "UP035", "UP037", "UP042"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+warn_unused_configs = true
+packages = ["label_master"]
+mypy_path = "src"
+
+[[tool.mypy.overrides]]
+module = ["streamlit", "yaml", "kaggle", "roboflow"]
+ignore_missing_imports = true

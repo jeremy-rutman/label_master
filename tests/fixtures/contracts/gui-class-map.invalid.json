@@ -1,0 +1,7 @@
+{
+  "class_map": {
+    "foo": "bar",
+    "3": 1.5
+  },
+  "unexpected": true
+}

@@ -1,0 +1,15 @@
+{
+  "created_at": "2026-03-04T20:30:31.406574Z",
+  "dry_run": false,
+  "dst_format": null,
+  "input_path": "/home/jeremy/data/drone_detect/label_master/tests/fixtures/us1/coco_minimal",
+  "mapping_file": null,
+  "mode": "validate",
+  "output_path": null,
+  "provider": null,
+  "run_id": "validate-514d8c9c36a0",
+  "schema_version": "1.1",
+  "source_ref": null,
+  "src_format": "coco",
+  "unmapped_policy": "error"
+}

@@ -1,0 +1,15 @@
+{
+  "created_at": "2026-03-04T20:29:02.369882Z",
+  "dry_run": false,
+  "dst_format": null,
+  "input_path": "/home/jeremy/data/drone_detect/label_master/tests/fixtures/us1/coco_minimal",
+  "mapping_file": null,
+  "mode": "infer",
+  "output_path": null,
+  "provider": null,
+  "run_id": "infer-6ae1daf25b3c",
+  "schema_version": "1.1",
+  "source_ref": null,
+  "src_format": "auto",
+  "unmapped_policy": "error"
+}
