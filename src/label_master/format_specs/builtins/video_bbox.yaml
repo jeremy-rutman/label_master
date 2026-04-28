@@ -1,0 +1,24 @@
+format_id: video_bbox
+display_name: Video BBox
+description: Video or frame-sequence tracking text annotations
+parser:
+  kind: tokenized_video
+  annotation_globs:
+    - annotations/*.txt
+    - annotations/**/*.txt
+  video_roots:
+    - videos
+    - data/videos
+  row_format:
+    kind: count_prefixed_objects
+    delimiter: whitespace
+    frame_index_field: 1
+    object_count_field: 2
+    frame_index_base: 0
+    object_group_size: 5
+    object_fields:
+      xmin: 1
+      ymin: 2
+      width: 3
+      height: 4
+      class_name: 5

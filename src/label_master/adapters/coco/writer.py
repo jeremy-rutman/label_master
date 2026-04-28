@@ -8,9 +8,14 @@ from label_master.core.domain.entities import AnnotationDataset
 from label_master.infra.filesystem import ensure_directory
 
 
-def write_coco_dataset(dataset: AnnotationDataset, output_root: Path) -> Path:
+def write_coco_dataset(
+    dataset: AnnotationDataset,
+    output_root: Path,
+    *,
+    annotations_file_name: str = "annotations.json",
+) -> Path:
     ensure_directory(output_root)
-    annotations_path = output_root / "annotations.json"
+    annotations_path = output_root / annotations_file_name
 
     image_ids = {image.image_id for image in dataset.images}
     image_records: list[dict[str, Any]] = []

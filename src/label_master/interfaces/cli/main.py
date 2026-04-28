@@ -11,6 +11,7 @@ import typer
 from label_master.core.domain.entities import SourceFormat
 from label_master.core.domain.policies import (
     InferencePolicy,
+    OversizeImageAction,
     UnmappedPolicy,
     ValidationMode,
     ValidationPolicy,
@@ -33,11 +34,11 @@ from label_master.core.services.validate_service import validate_dataset
 from label_master.infra.config import load_mapping_file
 from label_master.infra.logging import setup_logging
 from label_master.infra.reporting import generate_run_id, persist_run_artifacts
-from label_master.reports.schemas import RunConfigModel
+from label_master.reports.schemas import RunConfigModel, WarningEventModel
 
 app = typer.Typer(help="Bounding-box annotation conversion toolkit")
 
-RunSrcFormat = Literal["auto", "coco", "yolo"]
+RunSrcFormat = Literal["auto", "coco", "custom", "kitware", "matlab_ground_truth", "voc", "video_bbox", "yolo"]
 RunDstFormat = Literal["coco", "yolo"]
 ProviderName = Literal["kaggle", "roboflow", "github", "direct_url"]
 
@@ -63,13 +64,7 @@ def _artifact_dir(path: Path | None) -> Path:
 
 
 def _to_run_src_format(source_format: SourceFormat) -> RunSrcFormat:
-    if source_format == SourceFormat.AUTO:
-        return "auto"
-    if source_format == SourceFormat.COCO:
-        return "coco"
-    if source_format == SourceFormat.YOLO:
-        return "yolo"
-    raise ConfigurationError(f"Unsupported source format for run artifact: {source_format.value}")
+    return source_format.value  # type: ignore[return-value]
 
 
 def _to_run_dst_format(source_format: SourceFormat) -> RunDstFormat:
@@ -146,7 +141,12 @@ def infer_command(
             skipped=0,
         ),
     )
-    persist_run_artifacts(_artifact_dir(state.report_path), run_id, config, report)
+    persist_run_artifacts(
+        _artifact_dir(state.report_path),
+        run_id,
+        config,
+        report,
+    )
 
 
 @app.command("validate")
@@ -181,6 +181,8 @@ def validate_command(
         f"valid={outcome.summary.valid} invalid_annotations={outcome.summary.invalid_annotations} "
         f"format={outcome.inferred_format.value}"
     )
+    for warning in outcome.warnings:
+        typer.echo(f"warning={warning.message}")
 
     state: CLIState = ctx.obj
     parsed_source = _parse_source_format(source_format) if source_format != "auto" else SourceFormat.AUTO
@@ -208,8 +210,18 @@ def validate_command(
             invalid=outcome.summary.invalid_annotations,
             skipped=0,
         ),
+        warnings=[
+            WarningEventModel.model_validate(warning.model_dump(mode="python"))
+            for warning in outcome.warnings
+        ],
     )
-    persist_run_artifacts(_artifact_dir(state.report_path), run_id, config, report)
+    persist_run_artifacts(
+        _artifact_dir(state.report_path),
+        run_id,
+        config,
+        report,
+        dropped_annotations=outcome.dropped_annotations,
+    )
 
 
 @app.command("convert")
@@ -223,6 +235,12 @@ def convert_command(  # noqa: PLR0913
     unmapped_policy: str = typer.Option("error", "--unmapped-policy"),
     dry_run: bool = typer.Option(False, "--dry-run"),
     copy_images: bool = typer.Option(False, "--copy-images/--no-copy-images"),
+    allow_overwrite: bool = typer.Option(False, "--allow-overwrite/--no-allow-overwrite"),
+    input_path_include_substring: str | None = typer.Option(None, "--input-path-include-substring"),
+    input_path_exclude_substring: str | None = typer.Option(None, "--input-path-exclude-substring"),
+    min_image_longest_edge_px: int = typer.Option(0, "--min-image-longest-edge-px", min=0),
+    max_image_longest_edge_px: int = typer.Option(0, "--max-image-longest-edge-px", min=0),
+    oversize_image_action: str = typer.Option("ignore", "--oversize-image-action"),
     force: bool = typer.Option(False, "--force"),
 ) -> None:
     run_id = generate_run_id("convert")
@@ -248,6 +266,12 @@ def convert_command(  # noqa: PLR0913
                 dry_run=dry_run,
                 force_infer=force,
                 copy_images=copy_images,
+                allow_overwrite=allow_overwrite,
+                input_path_include_substring=input_path_include_substring,
+                input_path_exclude_substring=input_path_exclude_substring,
+                min_image_longest_edge_px=min_image_longest_edge_px,
+                max_image_longest_edge_px=max_image_longest_edge_px,
+                oversize_image_action=OversizeImageAction(oversize_image_action),
             )
         )
     except ValidationError as exc:
@@ -280,9 +304,21 @@ def convert_command(  # noqa: PLR0913
         mapping_file=str(map_path) if map_path else None,
         unmapped_policy=policy.value,
         dry_run=dry_run,
+        allow_overwrite=allow_overwrite,
+        input_path_include_substring=input_path_include_substring,
+        input_path_exclude_substring=input_path_exclude_substring,
+        min_image_longest_edge_px=min_image_longest_edge_px,
+        max_image_longest_edge_px=max_image_longest_edge_px,
+        oversize_image_action=oversize_image_action,  # type: ignore[arg-type]
         created_at=datetime.now(UTC),
     )
-    persist_run_artifacts(_artifact_dir(state.report_path), run_id, config, result.report)
+    persist_run_artifacts(
+        _artifact_dir(state.report_path),
+        run_id,
+        config,
+        result.report,
+        dropped_annotations=result.dropped_annotations,
+    )
 
 
 @app.command("remap")
@@ -294,6 +330,9 @@ def remap_command(
     map_path: Path = typer.Option(..., "--map", exists=True, file_okay=True, dir_okay=False),
     dry_run: bool = typer.Option(False, "--dry-run"),
     copy_images: bool = typer.Option(False, "--copy-images/--no-copy-images"),
+    allow_overwrite: bool = typer.Option(False, "--allow-overwrite/--no-allow-overwrite"),
+    input_path_include_substring: str | None = typer.Option(None, "--input-path-include-substring"),
+    input_path_exclude_substring: str | None = typer.Option(None, "--input-path-exclude-substring"),
 ) -> None:
     run_id = generate_run_id("remap")
 
@@ -312,6 +351,9 @@ def remap_command(
                 unmapped_policy=UnmappedPolicy.ERROR,
                 dry_run=dry_run,
                 copy_images=copy_images,
+                allow_overwrite=allow_overwrite,
+                input_path_include_substring=input_path_include_substring,
+                input_path_exclude_substring=input_path_exclude_substring,
             )
         )
     except ValidationError as exc:
@@ -338,9 +380,18 @@ def remap_command(
         src_format=_to_run_src_format(src_format),
         mapping_file=str(map_path),
         dry_run=dry_run,
+        allow_overwrite=allow_overwrite,
+        input_path_include_substring=input_path_include_substring,
+        input_path_exclude_substring=input_path_exclude_substring,
         created_at=datetime.now(UTC),
     )
-    persist_run_artifacts(_artifact_dir(state.report_path), run_id, config, result.report)
+    persist_run_artifacts(
+        _artifact_dir(state.report_path),
+        run_id,
+        config,
+        result.report,
+        dropped_annotations=result.dropped_annotations,
+    )
 
 
 @app.command("import")

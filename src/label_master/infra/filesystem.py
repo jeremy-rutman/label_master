@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import tempfile
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterable
 from urllib.parse import unquote, urlparse
@@ -9,6 +10,63 @@ from urllib.parse import unquote, urlparse
 import yaml
 
 from label_master.core.domain.value_objects import PathTraversalError
+
+
+@dataclass(frozen=True)
+class InputPathFilter:
+    include_substring: str | None = None
+    exclude_substring: str | None = None
+
+    @property
+    def is_active(self) -> bool:
+        return bool(self.include_substring or self.exclude_substring)
+
+
+def normalize_input_path_filter_substring(raw_value: str | None) -> str | None:
+    normalized = (raw_value or "").strip()
+    return normalized or None
+
+
+def build_input_path_filter(
+    *,
+    include_substring: str | None = None,
+    exclude_substring: str | None = None,
+) -> InputPathFilter | None:
+    normalized_include = normalize_input_path_filter_substring(include_substring)
+    normalized_exclude = normalize_input_path_filter_substring(exclude_substring)
+    if not normalized_include and not normalized_exclude:
+        return None
+    return InputPathFilter(
+        include_substring=normalized_include,
+        exclude_substring=normalized_exclude,
+    )
+
+
+def relative_path_matches_input_filter(
+    candidate: str | Path,
+    *,
+    input_path_filter: InputPathFilter | None,
+) -> bool:
+    if input_path_filter is None or not input_path_filter.is_active:
+        return True
+
+    candidate_text = str(candidate).replace("\\", "/").strip().lower()
+    include_substring = (
+        input_path_filter.include_substring.lower()
+        if input_path_filter.include_substring
+        else None
+    )
+    exclude_substring = (
+        input_path_filter.exclude_substring.lower()
+        if input_path_filter.exclude_substring
+        else None
+    )
+
+    if include_substring and include_substring not in candidate_text:
+        return False
+    if exclude_substring and exclude_substring in candidate_text:
+        return False
+    return True
 
 
 def ensure_directory(path: Path) -> Path:

@@ -1,0 +1,111 @@
+{
+  "file_infractions": [
+    {
+      "file": "images/46c32d34-example_drone_picture_bw.jpg",
+      "image_id": null,
+      "infraction_count": 5,
+      "infractions": [
+        {
+          "annotation_id": "2",
+          "bbox_xywh_abs": [
+            166.38036809815952,
+            55.4601226993865,
+            61.34969325153374,
+            47.607361963190186
+          ],
+          "class_id": 2,
+          "class_name": "bird",
+          "context": {
+            "unmapped_policy": "drop"
+          },
+          "image_file": "images/46c32d34-example_drone_picture_bw.jpg",
+          "image_id": "1",
+          "reason": "Dropped by class mapping.",
+          "reason_code": "class_dropped_by_mapping",
+          "stage": "remap"
+        },
+        {
+          "annotation_id": "3",
+          "bbox_xywh_abs": [
+            222.3312883435583,
+            37.30061349693251,
+            49.57055214723924,
+            33.37423312883436
+          ],
+          "class_id": 2,
+          "class_name": "bird",
+          "context": {
+            "unmapped_policy": "drop"
+          },
+          "image_file": "images/46c32d34-example_drone_picture_bw.jpg",
+          "image_id": "1",
+          "reason": "Dropped by class mapping.",
+          "reason_code": "class_dropped_by_mapping",
+          "stage": "remap"
+        },
+        {
+          "annotation_id": "4",
+          "bbox_xywh_abs": [
+            287.11656441717787,
+            23.558282208588956,
+            48.58895705521471,
+            36.809815950920246
+          ],
+          "class_id": 2,
+          "class_name": "bird",
+          "context": {
+            "unmapped_policy": "drop"
+          },
+          "image_file": "images/46c32d34-example_drone_picture_bw.jpg",
+          "image_id": "1",
+          "reason": "Dropped by class mapping.",
+          "reason_code": "class_dropped_by_mapping",
+          "stage": "remap"
+        },
+        {
+          "annotation_id": "5",
+          "bbox_xywh_abs": [
+            331.28834355828224,
+            32.39263803680982,
+            54.47852760736195,
+            33.865030674846615
+          ],
+          "class_id": 2,
+          "class_name": "bird",
+          "context": {
+            "unmapped_policy": "drop"
+          },
+          "image_file": "images/46c32d34-example_drone_picture_bw.jpg",
+          "image_id": "1",
+          "reason": "Dropped by class mapping.",
+          "reason_code": "class_dropped_by_mapping",
+          "stage": "remap"
+        },
+        {
+          "annotation_id": "6",
+          "bbox_xywh_abs": [
+            353.86503067484665,
+            58.895705521472394,
+            55.46012269938648,
+            34.84662576687117
+          ],
+          "class_id": 2,
+          "class_name": "bird",
+          "context": {
+            "unmapped_policy": "drop"
+          },
+          "image_file": "images/46c32d34-example_drone_picture_bw.jpg",
+          "image_id": "1",
+          "reason": "Dropped by class mapping.",
+          "reason_code": "class_dropped_by_mapping",
+          "stage": "remap"
+        }
+      ]
+    }
+  ],
+  "files_with_infractions_count": 1,
+  "run_id": "convert-cb219216547f",
+  "warning_count": 0,
+  "warning_messages": [],
+  "warnings": []
+}

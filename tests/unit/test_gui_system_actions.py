@@ -6,10 +6,20 @@ from label_master.interfaces.gui import system_actions
 
 
 def test_browse_directory_unavailable_fallback(monkeypatch) -> None:  # type: ignore[no-untyped-def]
-    def _raise_dialog(*, initial_directory: Path | None = None) -> Path | None:
+    def _raise_dialog(
+        *,
+        initial_directory: Path | None = None,
+        dialog_title: str = "Select directory",
+    ) -> Path | None:
+        del dialog_title
         raise RuntimeError("headless")
 
-    def _raise_fallback(*, initial_directory: Path | None = None) -> Path | None:
+    def _raise_fallback(
+        *,
+        initial_directory: Path | None = None,
+        dialog_title: str = "Select directory",
+    ) -> Path | None:
+        del initial_directory, dialog_title
         raise system_actions.DirectoryDialogUnavailableError("no dialog backend")
 
     monkeypatch.setattr(system_actions, "_open_native_directory_dialog", _raise_dialog)
@@ -27,7 +37,7 @@ def test_browse_directory_cancel_keeps_available(monkeypatch) -> None:  # type: 
     monkeypatch.setattr(
         system_actions,
         "_open_native_directory_dialog",
-        lambda *, initial_directory=None: None,
+        lambda *, initial_directory=None, dialog_title="Select directory": None,
     )
 
     result = system_actions.browse_for_directory()
@@ -39,14 +49,19 @@ def test_browse_directory_cancel_keeps_available(monkeypatch) -> None:  # type: 
 
 
 def test_browse_directory_uses_fallback_when_tk_unavailable(monkeypatch, tmp_path) -> None:  # type: ignore[no-untyped-def]
-    def _raise_dialog(*, initial_directory: Path | None = None) -> Path | None:
+    def _raise_dialog(
+        *,
+        initial_directory: Path | None = None,
+        dialog_title: str = "Select directory",
+    ) -> Path | None:
+        del initial_directory, dialog_title
         raise ModuleNotFoundError("No module named 'tkinter'")
 
     monkeypatch.setattr(system_actions, "_open_native_directory_dialog", _raise_dialog)
     monkeypatch.setattr(
         system_actions,
         "_open_fallback_directory_dialog",
-        lambda *, initial_directory=None: tmp_path.resolve(),
+        lambda *, initial_directory=None, dialog_title="Select directory": tmp_path.resolve(),
     )
 
     result = system_actions.browse_for_directory(initial_directory=tmp_path)
@@ -54,6 +69,49 @@ def test_browse_directory_uses_fallback_when_tk_unavailable(monkeypatch, tmp_pat
     assert result.available is True
     assert result.selected_path == tmp_path.resolve()
     assert result.message == "Selected directory."
+
+
+def test_browse_directory_uses_fallback_when_tk_not_on_main_thread(monkeypatch, tmp_path) -> None:  # type: ignore[no-untyped-def]
+    fake_current_thread = object()
+    fake_main_thread = object()
+
+    monkeypatch.setattr(system_actions.threading, "current_thread", lambda: fake_current_thread)
+    monkeypatch.setattr(system_actions.threading, "main_thread", lambda: fake_main_thread)
+    monkeypatch.setattr(
+        system_actions,
+        "_open_fallback_directory_dialog",
+        lambda *, initial_directory=None, dialog_title="Select directory": tmp_path.resolve(),
+    )
+
+    result = system_actions.browse_for_directory(initial_directory=tmp_path)
+
+    assert result.available is True
+    assert result.selected_path == tmp_path.resolve()
+    assert result.message == "Selected directory."
+
+
+def test_browse_directory_forwards_dialog_title(monkeypatch, tmp_path) -> None:  # type: ignore[no-untyped-def]
+    observed: dict[str, str | Path | None] = {}
+
+    def _fake_native_dialog(
+        *,
+        initial_directory: Path | None = None,
+        dialog_title: str = "Select directory",
+    ) -> Path | None:
+        observed["initial_directory"] = initial_directory
+        observed["dialog_title"] = dialog_title
+        return tmp_path.resolve()
+
+    monkeypatch.setattr(system_actions, "_open_native_directory_dialog", _fake_native_dialog)
+
+    result = system_actions.browse_for_directory(
+        initial_directory=tmp_path,
+        dialog_title="Select output directory",
+    )
+
+    assert result.selected_path == tmp_path.resolve()
+    assert observed["initial_directory"] == tmp_path
+    assert observed["dialog_title"] == "Select output directory"
 
 
 def test_open_output_directory_success(monkeypatch, tmp_path) -> None:  # type: ignore[no-untyped-def]

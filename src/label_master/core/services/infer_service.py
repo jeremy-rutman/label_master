@@ -1,8 +1,14 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Callable
 
 from label_master.adapters.coco.detector import detect_coco
+from label_master.adapters.custom.detector import detect_custom_format
+from label_master.adapters.kitware.detector import detect_kitware
+from label_master.adapters.matlab_ground_truth.detector import detect_matlab_ground_truth
+from label_master.adapters.video_bbox.detector import detect_video_bbox
+from label_master.adapters.voc.detector import detect_voc
 from label_master.adapters.yolo.detector import detect_yolo
 from label_master.core.domain.entities import (
     InferenceCandidate,
@@ -13,6 +19,18 @@ from label_master.core.domain.entities import (
 )
 from label_master.core.domain.policies import InferencePolicy
 from label_master.core.domain.value_objects import InferenceError
+from label_master.format_specs.registry import load_builtin_format_specs
+
+
+def _builtin_detectors() -> dict[str, Callable[..., float]]:
+    return {
+        "coco": detect_coco,
+        "kitware": detect_kitware,
+        "matlab_ground_truth": detect_matlab_ground_truth,
+        "voc": detect_voc,
+        "video_bbox": detect_video_bbox,
+        "yolo": detect_yolo,
+    }
 
 
 def infer_format(
@@ -22,14 +40,30 @@ def infer_format(
     force: bool = False,
 ) -> InferenceResult:
     policy = policy or InferencePolicy()
+    detectors = _builtin_detectors()
 
-    coco_score = detect_coco(input_path)
-    yolo_score = detect_yolo(input_path)
+    candidates: list[InferenceCandidate] = []
+    for format_id, spec in load_builtin_format_specs().items():
+        detector = detectors.get(format_id)
+        if detector is None:
+            continue
+        score = detector(input_path, sample_limit=policy.sample_limit)
+        candidates.append(
+            InferenceCandidate(
+                format=SourceFormat(format_id),
+                score=score,
+                evidence=[f"format_spec:{spec.format_id}"],
+            )
+        )
 
-    candidates = [
-        InferenceCandidate(format=SourceFormat.COCO, score=coco_score, evidence=["coco_detector"]),
-        InferenceCandidate(format=SourceFormat.YOLO, score=yolo_score, evidence=["yolo_detector"]),
-    ]
+    custom_score, custom_spec_id = detect_custom_format(input_path, sample_limit=policy.sample_limit)
+    candidates.append(
+        InferenceCandidate(
+            format=SourceFormat.CUSTOM,
+            score=custom_score,
+            evidence=[f"format_spec:{custom_spec_id}"] if custom_spec_id else ["format_spec:custom"],
+        )
+    )
     candidates.sort(key=lambda item: item.score, reverse=True)
 
     top = candidates[0]

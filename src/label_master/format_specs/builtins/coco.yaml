@@ -1,0 +1,29 @@
+format_id: coco
+display_name: COCO
+description: COCO-style JSON dataset with annotations.json
+parser:
+  kind: json_object_dataset
+  annotations_file: annotations.json
+  images_key: images
+  annotations_key: annotations
+  categories_key: categories
+  image_fields:
+    id: id
+    file_name: file_name
+    width: width
+    height: height
+  category_fields:
+    id: id
+    name: name
+    supercategory: supercategory
+  annotation_fields:
+    id: id
+    image_id: image_id
+    class_id: category_id
+    bbox: bbox
+    iscrowd: iscrowd
+  bbox_fields:
+    xmin: 1
+    ymin: 2
+    width: 3
+    height: 4

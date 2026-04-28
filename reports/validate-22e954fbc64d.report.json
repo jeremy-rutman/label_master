@@ -1,0 +1,34 @@
+{
+  "contention_events": [],
+  "dst_format": null,
+  "git_commit": null,
+  "input_path": "/home/jeremy/Documents/drone_data/image/mav_vid_dataset",
+  "output_path": null,
+  "provenance": [],
+  "run_id": "validate-22e954fbc64d",
+  "schema_version": "1.1",
+  "src_format": "yolo",
+  "status": "completed",
+  "summary_counts": {
+    "annotations_in": 44591,
+    "annotations_out": 44591,
+    "dropped": 0,
+    "images": 40232,
+    "invalid": 0,
+    "skipped": 0,
+    "unmapped": 0
+  },
+  "timestamp": "2026-04-13T20:10:40.179452Z",
+  "tool_version": "0.1.0",
+  "warnings": [
+    {
+      "code": "validation_bbox_clipped_to_frame",
+      "context": {
+        "clip_tolerance_px": "20",
+        "clipped_annotations": "97"
+      },
+      "message": "Auto-corrected 97 annotation(s) whose bbox went slightly out of frame by clipping them to the image bounds (tolerance: <= 20px).",
+      "severity": "warning"
+    }
+  ]
+}

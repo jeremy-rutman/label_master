@@ -1,0 +1,24 @@
+{
+  "contention_events": [],
+  "dst_format": null,
+  "git_commit": null,
+  "input_path": "/home/jeremy/Documents/drone_data/image/wosdetc_drone_vs_bird_challenge",
+  "output_path": null,
+  "provenance": [],
+  "run_id": "infer-213217c68ce3",
+  "schema_version": "1.1",
+  "src_format": null,
+  "status": "completed",
+  "summary_counts": {
+    "annotations_in": 0,
+    "annotations_out": 0,
+    "dropped": 0,
+    "images": 0,
+    "invalid": 0,
+    "skipped": 0,
+    "unmapped": 0
+  },
+  "timestamp": "2026-04-11T14:29:18.666932Z",
+  "tool_version": "0.1.0",
+  "warnings": []
+}

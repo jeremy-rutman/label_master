@@ -1,0 +1,15 @@
+{
+  "created_at": "2026-03-31T18:12:52.401940Z",
+  "dry_run": false,
+  "dst_format": "yolo",
+  "input_path": "tests/fixtures/us1/coco_minimal",
+  "mapping_file": "/tmp/pytest-of-jeremy/pytest-7/test_gui_inline_mapping_persis0/reports/gui-inline-test.gui.class_map.json",
+  "mode": "convert",
+  "output_path": "/tmp/pytest-of-jeremy/pytest-7/test_gui_inline_mapping_persis0/cli_output",
+  "provider": null,
+  "run_id": "convert-3101c4ef26f8",
+  "schema_version": "1.1",
+  "source_ref": null,
+  "src_format": "coco",
+  "unmapped_policy": "drop"
+}

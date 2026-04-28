@@ -7,6 +7,12 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from label_master.core.domain.policies import (
+    DEFAULT_CORRECT_OUT_OF_FRAME_BBOXES,
+    DEFAULT_MAX_IMAGE_LONGEST_EDGE_PX,
+    DEFAULT_MIN_IMAGE_LONGEST_EDGE_PX,
+    DEFAULT_OUT_OF_FRAME_TOLERANCE_PX,
+)
 from label_master.core.domain.value_objects import ConfigurationError
 
 CURRENT_V1_MINOR = 1
@@ -59,6 +65,39 @@ class SummaryCountsModel(BaseModel):
     skipped: int = Field(ge=0)
 
 
+class DroppedAnnotationModel(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    annotation_id: str | None = None
+    image_id: str | None = None
+    image_file: str | None = None
+    source_file: str | None = None
+    class_id: int | None = None
+    class_name: str | None = None
+    bbox_xywh_abs: tuple[float, float, float, float] | None = None
+    stage: Literal["load", "validation", "remap", "size_gate"]
+    reason_code: str = Field(min_length=1)
+    reason: str = Field(min_length=1)
+    context: dict[str, str] = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def _validate_required_fields(self) -> "DroppedAnnotationModel":
+        if self.stage == "load":
+            if not self.source_file:
+                raise ValueError("load-stage dropped items require source_file")
+            return self
+
+        if not self.annotation_id:
+            raise ValueError("annotation_id is required for non-load dropped items")
+        if not self.image_id:
+            raise ValueError("image_id is required for non-load dropped items")
+        if self.class_id is None:
+            raise ValueError("class_id is required for non-load dropped items")
+        if self.bbox_xywh_abs is None:
+            raise ValueError("bbox_xywh_abs is required for non-load dropped items")
+        return self
+
+
 class RunConfigModel(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -67,11 +106,21 @@ class RunConfigModel(BaseModel):
     mode: Literal["infer", "validate", "convert", "remap", "import"]
     input_path: str = Field(min_length=1)
     output_path: str | None = None
-    src_format: Literal["auto", "coco", "yolo"]
+    src_format: str
     dst_format: Literal["coco", "yolo"] | None = None
     mapping_file: str | None = None
     unmapped_policy: Literal["error", "drop", "identity"] = "error"
     dry_run: bool = False
+    allow_overwrite: bool = False
+    input_path_include_substring: str | None = None
+    input_path_exclude_substring: str | None = None
+    validation_mode: Literal["strict", "permissive"] = "strict"
+    permissive_invalid_annotation_action: Literal["keep", "drop"] = "keep"
+    correct_out_of_frame_bboxes: bool = DEFAULT_CORRECT_OUT_OF_FRAME_BBOXES
+    out_of_frame_tolerance_px: float = Field(default=DEFAULT_OUT_OF_FRAME_TOLERANCE_PX, ge=0.0)
+    min_image_longest_edge_px: int = Field(default=DEFAULT_MIN_IMAGE_LONGEST_EDGE_PX, ge=0)
+    max_image_longest_edge_px: int = Field(default=DEFAULT_MAX_IMAGE_LONGEST_EDGE_PX, ge=0)
+    oversize_image_action: Literal["ignore", "downscale"] = "ignore"
     provider: Literal["kaggle", "roboflow", "github", "direct_url"] | None = None
     source_ref: str | None = None
     created_at: datetime
@@ -101,7 +150,7 @@ class RunReportModel(BaseModel):
     git_commit: str | None = None
     input_path: str = Field(min_length=1)
     output_path: str | None = None
-    src_format: Literal["auto", "coco", "yolo"] | None = None
+    src_format: str | None = None
     dst_format: Literal["coco", "yolo"] | None = None
     summary_counts: SummaryCountsModel
     warnings: list[WarningEventModel] = Field(default_factory=list)
@@ -135,10 +184,24 @@ def upgrade_run_config_payload(payload: dict[str, Any]) -> dict[str, Any]:
 
     if version == PREVIOUS_SCHEMA_VERSION:
         upgraded.setdefault("dry_run", False)
+        upgraded.setdefault("allow_overwrite", False)
+        upgraded.setdefault("input_path_include_substring", None)
+        upgraded.setdefault("input_path_exclude_substring", None)
         upgraded.setdefault("unmapped_policy", "error")
+        upgraded.setdefault("validation_mode", "strict")
+        upgraded.setdefault("permissive_invalid_annotation_action", "keep")
+        upgraded.setdefault("correct_out_of_frame_bboxes", DEFAULT_CORRECT_OUT_OF_FRAME_BBOXES)
+        upgraded.setdefault("out_of_frame_tolerance_px", DEFAULT_OUT_OF_FRAME_TOLERANCE_PX)
+        upgraded.setdefault("min_image_longest_edge_px", DEFAULT_MIN_IMAGE_LONGEST_EDGE_PX)
+        upgraded.setdefault("max_image_longest_edge_px", DEFAULT_MAX_IMAGE_LONGEST_EDGE_PX)
+        upgraded.setdefault("oversize_image_action", "ignore")
         upgraded.setdefault("provider", None)
         upgraded.setdefault("source_ref", None)
 
+    upgraded.setdefault("permissive_invalid_annotation_action", "keep")
+    upgraded.setdefault("allow_overwrite", False)
+    upgraded.setdefault("input_path_include_substring", None)
+    upgraded.setdefault("input_path_exclude_substring", None)
     upgraded["schema_version"] = CURRENT_SCHEMA_VERSION
     return upgraded
 

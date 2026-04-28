@@ -1,0 +1,20 @@
+format_id: voc
+display_name: Pascal VOC
+description: Pascal VOC XML annotations with paired images
+parser:
+  kind: xml_annotation_dataset
+  annotation_globs:
+    - "**/*.xml"
+  root_tag: annotation
+  filename_field: filename
+  path_field: path
+  size_width_field: size/width
+  size_height_field: size/height
+  object_tag: object
+  object_name_field: name
+  bbox_tag: bndbox
+  bbox_fields:
+    xmin: xmin
+    ymin: ymin
+    xmax: xmax
+    ymax: ymax

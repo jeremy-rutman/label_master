@@ -1,0 +1,24 @@
+{
+  "contention_events": [],
+  "dst_format": "coco",
+  "git_commit": null,
+  "input_path": "tests/fixtures/us3/provider_sample2_video",
+  "output_path": "/tmp/pytest-of-jeremy/pytest-12/test_cli_convert_auto_detects_2/converted",
+  "provenance": [],
+  "run_id": "convert-579fc759227f",
+  "schema_version": "1.1",
+  "src_format": "auto",
+  "status": "completed",
+  "summary_counts": {
+    "annotations_in": 399,
+    "annotations_out": 399,
+    "dropped": 0,
+    "images": 400,
+    "invalid": 0,
+    "skipped": 0,
+    "unmapped": 0
+  },
+  "timestamp": "2026-04-15T21:15:16.409231Z",
+  "tool_version": "0.1.0",
+  "warnings": []
+}

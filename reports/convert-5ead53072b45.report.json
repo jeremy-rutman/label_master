@@ -1,0 +1,24 @@
+{
+  "contention_events": [],
+  "dst_format": "coco",
+  "git_commit": null,
+  "input_path": "tests/fixtures/us6",
+  "output_path": "/tmp/pytest-of-jeremy/pytest-45/test_cli_convert_auto_detects_2/converted",
+  "provenance": [],
+  "run_id": "convert-5ead53072b45",
+  "schema_version": "1.1",
+  "src_format": "auto",
+  "status": "completed",
+  "summary_counts": {
+    "annotations_in": 5,
+    "annotations_out": 5,
+    "dropped": 0,
+    "images": 5,
+    "invalid": 0,
+    "skipped": 0,
+    "unmapped": 0
+  },
+  "timestamp": "2026-04-02T20:17:27.310147Z",
+  "tool_version": "0.1.0",
+  "warnings": []
+}

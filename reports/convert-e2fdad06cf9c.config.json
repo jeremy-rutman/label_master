@@ -1,0 +1,20 @@
+{
+  "correct_out_of_frame_bboxes": true,
+  "created_at": "2026-04-06T19:32:58.885826Z",
+  "dry_run": false,
+  "dst_format": "coco",
+  "input_path": "tests/fixtures/us5",
+  "mapping_file": null,
+  "max_image_longest_edge_px": 0,
+  "min_image_longest_edge_px": 0,
+  "mode": "convert",
+  "out_of_frame_tolerance_px": 1.0,
+  "output_path": "/tmp/pytest-of-jeremy/pytest-49/test_cli_convert_auto_detects_1/converted_sequence",
+  "oversize_image_action": "ignore",
+  "provider": null,
+  "run_id": "convert-e2fdad06cf9c",
+  "schema_version": "1.1",
+  "source_ref": null,
+  "src_format": "auto",
+  "unmapped_policy": "error"
+}

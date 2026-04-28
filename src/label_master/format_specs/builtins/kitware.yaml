@@ -1,0 +1,30 @@
+format_id: kitware
+display_name: Kitware CSV
+description: Nested CSV/image layout with bracketed bbox columns
+parser:
+  kind: csv_bracket_bbox_dataset
+  csv_globs:
+    - "**/*.csv"
+  image_field_aliases:
+    - imagefilename
+    - image_filename
+  bbox_column_class_map:
+    airplane: airplane
+    airplane_bbox: airplane
+    bird: bird
+    bird_bbox: bird
+    drone: drone
+    drone_bbox: drone
+    helicopter: helicopter
+    helicopter_bbox: helicopter
+    place: airplane
+    place_bbox: airplane
+    plane: airplane
+    plane_bbox: airplane
+  bbox_fields:
+    xmin: 1
+    ymin: 2
+    width: 3
+    height: 4
+  bbox_enclosure: "[]"
+  box_separator: ";"

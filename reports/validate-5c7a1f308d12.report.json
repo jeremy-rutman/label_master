@@ -1,0 +1,24 @@
+{
+  "contention_events": [],
+  "dst_format": null,
+  "git_commit": null,
+  "input_path": "tests/fixtures/us3/provider_sample2_video",
+  "output_path": null,
+  "provenance": [],
+  "run_id": "validate-5c7a1f308d12",
+  "schema_version": "1.1",
+  "src_format": "video_bbox",
+  "status": "completed",
+  "summary_counts": {
+    "annotations_in": 399,
+    "annotations_out": 399,
+    "dropped": 0,
+    "images": 400,
+    "invalid": 0,
+    "skipped": 0,
+    "unmapped": 0
+  },
+  "timestamp": "2026-04-11T12:46:49.401548Z",
+  "tool_version": "0.1.0",
+  "warnings": []
+}
