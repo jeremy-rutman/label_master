@@ -9,6 +9,11 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 class SourceFormat(str, Enum):
     AUTO = "auto"
     COCO = "coco"
+    CUSTOM = "custom"
+    KITWARE = "kitware"
+    MATLAB_GROUND_TRUTH = "matlab_ground_truth"
+    VOC = "voc"
+    VIDEO_BBOX = "video_bbox"
     YOLO = "yolo"
     UNKNOWN = "unknown"
     AMBIGUOUS = "ambiguous"
@@ -95,6 +100,7 @@ class SourceMetadata(BaseModel):
     dataset_root: str = Field(min_length=1)
     loaded_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     loader: str = Field(min_length=1)
+    details: dict[str, str] = Field(default_factory=dict)
 
 
 class AnnotationDataset(BaseModel):
@@ -106,6 +112,7 @@ class AnnotationDataset(BaseModel):
     annotations: list[AnnotationRecord]
     categories: dict[int, CategoryRecord]
     source_metadata: SourceMetadata
+    warnings: list["WarningEvent"] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def _validate_links(self) -> "AnnotationDataset":

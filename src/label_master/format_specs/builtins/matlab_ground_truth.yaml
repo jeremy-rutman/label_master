@@ -1,0 +1,6 @@
+format_id: matlab_ground_truth
+display_name: MATLAB Ground Truth
+description: MATLAB Computer Vision Toolbox groundTruth video annotations saved as .mat files
+parser:
+  kind: built_in
+  builtin_format: matlab_ground_truth

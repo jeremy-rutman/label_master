@@ -1,0 +1,24 @@
+{
+  "contention_events": [],
+  "dst_format": "yolo",
+  "git_commit": null,
+  "input_path": "tests/fixtures/us1/coco_minimal",
+  "output_path": "/tmp/pytest-of-jeremy/pytest-28/test_gui_cli_output_parity0/cli_output",
+  "provenance": [],
+  "run_id": "convert-42cad5b32bc3",
+  "schema_version": "1.1",
+  "src_format": "coco",
+  "status": "completed",
+  "summary_counts": {
+    "annotations_in": 7,
+    "annotations_out": 2,
+    "dropped": 5,
+    "images": 2,
+    "invalid": 0,
+    "skipped": 0,
+    "unmapped": 0
+  },
+  "timestamp": "2026-04-13T20:06:22.320604Z",
+  "tool_version": "0.1.0",
+  "warnings": []
+}

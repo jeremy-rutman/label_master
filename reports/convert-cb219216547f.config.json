@@ -1,0 +1,22 @@
+{
+  "correct_out_of_frame_bboxes": true,
+  "created_at": "2026-04-13T21:28:25.364728Z",
+  "dry_run": false,
+  "dst_format": "yolo",
+  "input_path": "tests/fixtures/us1/coco_minimal",
+  "mapping_file": "/tmp/pytest-of-jeremy/pytest-32/test_gui_inline_mapping_persis0/reports/gui-inline-test.gui.class_map.json",
+  "max_image_longest_edge_px": 0,
+  "min_image_longest_edge_px": 0,
+  "mode": "convert",
+  "out_of_frame_tolerance_px": 20.0,
+  "output_path": "/tmp/pytest-of-jeremy/pytest-32/test_gui_inline_mapping_persis0/cli_output",
+  "oversize_image_action": "ignore",
+  "permissive_invalid_annotation_action": "keep",
+  "provider": null,
+  "run_id": "convert-cb219216547f",
+  "schema_version": "1.1",
+  "source_ref": null,
+  "src_format": "coco",
+  "unmapped_policy": "drop",
+  "validation_mode": "strict"
+}

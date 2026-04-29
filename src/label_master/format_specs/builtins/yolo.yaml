@@ -1,0 +1,39 @@
+format_id: yolo
+display_name: YOLO
+description: YOLO txt labels with paired images and optional classes.txt
+parser:
+  kind: tokenized_image_labels
+  label_globs:
+    - "labels/**/*.txt"
+    - "**/labels/**/*.txt"
+    - "**/*labels/**/*.txt"
+    - "img/**/*.txt"
+    - "**/img/**/*.txt"
+    - "images/**/*.txt"
+    - "**/images/**/*.txt"
+  classes_file_name: classes.txt
+  image_sizes_file_name: image_sizes.json
+  image_extensions:
+    - .jpg
+    - .jpeg
+    - .png
+    - .bmp
+    - .webp
+  path_rewrites:
+    - from: /labels/
+      to: /images/
+    - from: labels/
+      to: images/
+    - from: _labels/
+      to: _images/
+    - from: _labels
+      to: _images
+  row_format:
+    kind: single_object
+    delimiter: whitespace
+    class_id_field: 1
+    x_center_field: 2
+    y_center_field: 3
+    width_field: 4
+    height_field: 5
+    normalized_coordinates: true

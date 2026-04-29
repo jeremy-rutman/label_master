@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from typer.testing import CliRunner
@@ -46,6 +47,14 @@ def test_coco_to_yolo_convert_with_remap_and_drop(tmp_path) -> None:  # type: ig
 
     reports = list(report_dir.glob("*.report.json"))
     assert reports
+    warnings_logs = list(report_dir.glob("*.warnings.json"))
+    assert warnings_logs == []
+    dropped_logs = list(report_dir.glob("*.dropped_annotations.json"))
+    assert len(dropped_logs) == 1
+    dropped_payload = json.loads(dropped_logs[0].read_text(encoding="utf-8"))
+    assert dropped_payload["dropped_annotation_count"] == 5
+    assert all(item["stage"] == "remap" for item in dropped_payload["dropped_annotations"])
+    assert all(item["reason_code"] == "class_dropped_by_mapping" for item in dropped_payload["dropped_annotations"])
 
 
 def test_convert_dry_run_does_not_write_annotations(tmp_path) -> None:  # type: ignore[no-untyped-def]

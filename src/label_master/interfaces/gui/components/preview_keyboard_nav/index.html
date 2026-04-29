@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>preview keyboard nav</title>
+  </head>
+  <body>
+    <script>
+      const STREAMLIT_MESSAGES = {
+        COMPONENT_READY: "streamlit:componentReady",
+        RENDER: "streamlit:render",
+        SET_COMPONENT_VALUE: "streamlit:setComponentValue",
+        SET_FRAME_HEIGHT: "streamlit:setFrameHeight",
+      };
+
+      const navState = {
+        enabled: false,
+        previousDisabled: true,
+        nextDisabled: true,
+        nonce: 0,
+      };
+
+      let listenerAttached = false;
+
+      function sendMessage(type, payload = {}) {
+        window.parent.postMessage(
+          {
+            isStreamlitMessage: true,
+            type,
+            ...payload,
+          },
+          "*",
+        );
+      }
+
+      function setComponentReady() {
+        sendMessage(STREAMLIT_MESSAGES.COMPONENT_READY, { apiVersion: 1 });
+      }
+
+      function setFrameHeight(height) {
+        sendMessage(STREAMLIT_MESSAGES.SET_FRAME_HEIGHT, { height });
+      }
+
+      function setComponentValue(value) {
+        sendMessage(STREAMLIT_MESSAGES.SET_COMPONENT_VALUE, { value });
+      }
+
+      function isEditableTarget(target) {
+        return Boolean(
+          target &&
+            typeof target.closest === "function" &&
+            target.closest(
+              'input, textarea, select, [contenteditable="true"], [role="textbox"], ' +
+                '[role="combobox"], [role="listbox"], [data-baseweb="select"]',
+            ),
+        );
+      }
+
+      function isVisible() {
+        const frame = window.frameElement;
+        return !frame || frame.offsetParent !== null;
+      }
+
+      function handleKeydown(event) {
+        if (
+          !navState.enabled ||
+          event.defaultPrevented ||
+          event.metaKey ||
+          event.ctrlKey ||
+          event.altKey ||
+          event.repeat ||
+          !isVisible() ||
+          isEditableTarget(event.target)
+        ) {
+          return;
+        }
+
+        let action = null;
+        if (event.key === "ArrowLeft" && !navState.previousDisabled) {
+          action = "previous";
+        } else if (event.key === "ArrowRight" && !navState.nextDisabled) {
+          action = "next";
+        }
+
+        if (!action) {
+          return;
+        }
+
+        event.preventDefault();
+        navState.nonce += 1;
+        setComponentValue({ action, nonce: navState.nonce });
+      }
+
+      function attachListener() {
+        if (listenerAttached) {
+          return;
+        }
+        window.parent.document.addEventListener("keydown", handleKeydown, true);
+        listenerAttached = true;
+      }
+
+      function detachListener() {
+        if (!listenerAttached) {
+          return;
+        }
+        window.parent.document.removeEventListener("keydown", handleKeydown, true);
+        listenerAttached = false;
+      }
+
+      window.addEventListener("message", (event) => {
+        if (!event.data || event.data.type !== STREAMLIT_MESSAGES.RENDER) {
+          return;
+        }
+
+        const args = event.data.args || {};
+        navState.enabled = Boolean(args.enabled);
+        navState.previousDisabled = Boolean(args.previous_disabled);
+        navState.nextDisabled = Boolean(args.next_disabled);
+
+        attachListener();
+        setFrameHeight(0);
+      });
+
+      window.addEventListener("beforeunload", () => {
+        detachListener();
+      });
+
+      setComponentReady();
+      setFrameHeight(0);
+    </script>
+  </body>
+</html>

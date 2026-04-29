@@ -1,0 +1,15 @@
+{
+  "created_at": "2026-03-31T19:46:58.219989Z",
+  "dry_run": false,
+  "dst_format": "yolo",
+  "input_path": "tests/fixtures/us1/coco_minimal",
+  "mapping_file": "tests/fixtures/us1/maps/class_map_drop.yaml",
+  "mode": "convert",
+  "output_path": "/tmp/pytest-of-jeremy/pytest-19/test_gui_cli_output_parity0/cli_output",
+  "provider": null,
+  "run_id": "convert-93fda4cb63fa",
+  "schema_version": "1.1",
+  "source_ref": null,
+  "src_format": "coco",
+  "unmapped_policy": "drop"
+}

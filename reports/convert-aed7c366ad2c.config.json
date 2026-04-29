@@ -1,0 +1,22 @@
+{
+  "correct_out_of_frame_bboxes": true,
+  "created_at": "2026-04-13T20:06:21.963171Z",
+  "dry_run": true,
+  "dst_format": "yolo",
+  "input_path": "/home/jeremy/Documents/label_master/tests/fixtures/us1/coco_minimal",
+  "mapping_file": null,
+  "max_image_longest_edge_px": 0,
+  "min_image_longest_edge_px": 0,
+  "mode": "convert",
+  "out_of_frame_tolerance_px": 20.0,
+  "output_path": "/tmp/pytest-of-jeremy/pytest-28/test_convert_dry_run_does_not_0/converted",
+  "oversize_image_action": "ignore",
+  "permissive_invalid_annotation_action": "keep",
+  "provider": null,
+  "run_id": "convert-aed7c366ad2c",
+  "schema_version": "1.1",
+  "source_ref": null,
+  "src_format": "coco",
+  "unmapped_policy": "error",
+  "validation_mode": "strict"
+}

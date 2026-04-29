@@ -4,6 +4,7 @@ import os
 import shutil
 import subprocess
 import sys
+import threading
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -26,17 +27,30 @@ class DirectoryDialogUnavailableError(RuntimeError):
     """Raised when no usable directory dialog backend is available."""
 
 
-def _open_native_directory_dialog(*, initial_directory: Path | None = None) -> Path | None:
+def _normalized_dialog_title(dialog_title: str) -> str:
+    normalized = dialog_title.strip()
+    return normalized or "Select directory"
+
+
+def _open_native_directory_dialog(
+    *,
+    initial_directory: Path | None = None,
+    dialog_title: str = "Select directory",
+) -> Path | None:
+    if threading.current_thread() is not threading.main_thread():
+        raise DirectoryDialogUnavailableError("tkinter directory picker is only safe from the main thread")
+
     import tkinter
     from tkinter import filedialog
 
+    title = _normalized_dialog_title(dialog_title)
     root = tkinter.Tk()
     try:
         root.withdraw()
         selected = filedialog.askdirectory(
             initialdir=str(initial_directory) if initial_directory else None,
             mustexist=True,
-            title="Select input directory",
+            title=title,
         )
     finally:
         root.destroy()
@@ -59,12 +73,18 @@ def _run_dialog_command(command: list[str]) -> Path | None:
     raise RuntimeError(stderr)
 
 
-def _open_fallback_directory_dialog(*, initial_directory: Path | None = None) -> Path | None:
+def _open_fallback_directory_dialog(
+    *,
+    initial_directory: Path | None = None,
+    dialog_title: str = "Select directory",
+) -> Path | None:
     initial_arg = str(initial_directory) if initial_directory else str(Path.home())
+    title = _normalized_dialog_title(dialog_title)
     errors: list[str] = []
 
     if sys.platform.startswith("darwin") and shutil.which("osascript"):
-        script = 'POSIX path of (choose folder with prompt "Select input directory")'
+        escaped_title = title.replace("\\", "\\\\").replace('"', '\\"')
+        script = f'POSIX path of (choose folder with prompt "{escaped_title}")'
         try:
             return _run_dialog_command(["osascript", "-e", script])
         except Exception as exc:
@@ -74,10 +94,11 @@ def _open_fallback_directory_dialog(*, initial_directory: Path | None = None) ->
         powershell = shutil.which("powershell") or shutil.which("pwsh")
         if powershell:
             escaped_initial = initial_arg.replace("'", "''")
+            escaped_title = title.replace("'", "''")
             script = (
                 "Add-Type -AssemblyName System.Windows.Forms; "
                 "$dialog = New-Object System.Windows.Forms.FolderBrowserDialog; "
-                "$dialog.Description = 'Select input directory'; "
+                f"$dialog.Description = '{escaped_title}'; "
                 f"$dialog.SelectedPath = '{escaped_initial}'; "
                 "if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) "
                 "{ Write-Output $dialog.SelectedPath; exit 0 } "
@@ -95,7 +116,7 @@ def _open_fallback_directory_dialog(*, initial_directory: Path | None = None) ->
                     "zenity",
                     "--file-selection",
                     "--directory",
-                    "--title=Select input directory",
+                    f"--title={title}",
                     f"--filename={initial_arg}/",
                 ]
             )
@@ -104,7 +125,7 @@ def _open_fallback_directory_dialog(*, initial_directory: Path | None = None) ->
 
     if shutil.which("kdialog"):
         try:
-            return _run_dialog_command(["kdialog", "--getexistingdirectory", initial_arg])
+            return _run_dialog_command(["kdialog", "--title", title, "--getexistingdirectory", initial_arg])
         except Exception as exc:
             errors.append(f"kdialog: {exc}")
 
@@ -115,7 +136,7 @@ def _open_fallback_directory_dialog(*, initial_directory: Path | None = None) ->
                     "yad",
                     "--file",
                     "--directory",
-                    "--title=Select input directory",
+                    f"--title={title}",
                     f"--filename={initial_arg}/",
                 ]
             )
@@ -127,12 +148,22 @@ def _open_fallback_directory_dialog(*, initial_directory: Path | None = None) ->
     raise DirectoryDialogUnavailableError("No supported directory picker backend found")
 
 
-def browse_for_directory(*, initial_directory: Path | None = None) -> DirectoryBrowseResult:
+def browse_for_directory(
+    *,
+    initial_directory: Path | None = None,
+    dialog_title: str = "Select directory",
+) -> DirectoryBrowseResult:
     try:
-        selected = _open_native_directory_dialog(initial_directory=initial_directory)
+        selected = _open_native_directory_dialog(
+            initial_directory=initial_directory,
+            dialog_title=dialog_title,
+        )
     except Exception as native_exc:
         try:
-            selected = _open_fallback_directory_dialog(initial_directory=initial_directory)
+            selected = _open_fallback_directory_dialog(
+                initial_directory=initial_directory,
+                dialog_title=dialog_title,
+            )
         except DirectoryDialogUnavailableError as fallback_exc:  # pragma: no cover - exercised via monkeypatch
             return DirectoryBrowseResult(
                 selected_path=None,

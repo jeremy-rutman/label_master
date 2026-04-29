@@ -1,0 +1,15 @@
+{
+  "created_at": "2026-03-31T18:49:19.694964Z",
+  "dry_run": false,
+  "dst_format": "coco",
+  "input_path": "tests/fixtures/us4",
+  "mapping_file": null,
+  "mode": "convert",
+  "output_path": "/tmp/pytest-of-jeremy/pytest-14/test_cli_convert_auto_detects_0/converted",
+  "provider": null,
+  "run_id": "convert-ab5c9a1057bc",
+  "schema_version": "1.1",
+  "source_ref": null,
+  "src_format": "auto",
+  "unmapped_policy": "error"
+}

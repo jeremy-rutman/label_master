@@ -16,6 +16,7 @@ from label_master.core.domain.entities import (
 )
 from label_master.core.domain.policies import (
     InferencePolicy,
+    InvalidAnnotationAction,
     RemapPolicy,
     UnmappedPolicy,
     ValidationMode,
@@ -71,10 +72,16 @@ def test_remap_policy_resolution_modes() -> None:
 
 def test_validation_policy_modes() -> None:
     strict = ValidationPolicy.for_mode(ValidationMode.STRICT)
-    permissive = ValidationPolicy.for_mode(ValidationMode.PERMISSIVE)
+    permissive = ValidationPolicy.for_mode(
+        ValidationMode.PERMISSIVE,
+        invalid_annotation_action=InvalidAnnotationAction.DROP,
+    )
 
     assert strict.max_invalid_annotations == 0
     assert permissive.max_invalid_annotations > strict.max_invalid_annotations
+    assert permissive.invalid_annotation_action == InvalidAnnotationAction.DROP
+    assert strict.correct_out_of_frame_bboxes is True
+    assert strict.out_of_frame_tolerance_px == 20.0
 
 
 def test_inference_policy_ambiguity_margin() -> None:
