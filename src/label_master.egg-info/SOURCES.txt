@@ -1,5 +1,6 @@
 README.md
 pyproject.toml
+setup.py
 src/label_master/__init__.py
 src/label_master.egg-info/PKG-INFO
 src/label_master.egg-info/SOURCES.txt
@@ -44,6 +45,7 @@ src/label_master/interfaces/cli/__init__.py
 src/label_master/interfaces/cli/main.py
 src/label_master/interfaces/gui/__init__.py
 src/label_master/interfaces/gui/app.py
+src/label_master/interfaces/gui/system_actions.py
 src/label_master/interfaces/gui/viewmodels.py
 src/label_master/reports/__init__.py
 src/label_master/reports/schemas.py

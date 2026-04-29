@@ -20,3 +20,50 @@ Requires-Dist: mypy<2,>=1.11; extra == "dev"
 # label_master
 
 Tools for inferring, validating, converting, and importing bounding-box annotation datasets.
+
+## Local setup
+
+This project requires Python 3.11 or newer.
+
+Check your interpreter version first:
+
+```bash
+python3 --version
+```
+
+If `python3.11` is available on your system, create and activate a virtual environment with:
+
+```bash
+python3.11 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install -e '.[dev]'
+```
+
+If `python3.11` is not installed but `python3` already points to Python 3.11+, use:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install -e '.[dev]'
+```
+
+## Common development commands
+
+After activating the virtual environment, you can run:
+
+```bash
+pytest
+ruff check .
+mypy src
+```
+
+Or use the Makefile targets:
+
+```bash
+make install
+make lint
+make typecheck
+make test
+```
