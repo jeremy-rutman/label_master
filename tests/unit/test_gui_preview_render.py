@@ -146,6 +146,26 @@ def test_render_preview_overlay_downscales_large_images(tmp_path) -> None:  # ty
     assert max(overlay.size) == PREVIEW_MAX_IMAGE_DIMENSION
 
 
+def test_render_preview_overlay_uses_per_box_colors(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    images_dir = tmp_path / "images"
+    images_dir.mkdir()
+    Image.new("RGB", (100, 100), color="black").save(images_dir / "colors.jpg")
+
+    overlay, warnings = render_preview_overlay(
+        dataset_root=tmp_path,
+        image_rel_path="images/colors.jpg",
+        bboxes=[
+            (10.0, 10.0, 20.0, 20.0, "ann 0:drone", "blue"),
+            (40.0, 10.0, 20.0, 20.0, "det add 0:drone", "orange"),
+        ],
+    )
+
+    assert warnings == []
+    assert overlay is not None
+    assert overlay.getpixel((10, 10)) == (0, 0, 255)
+    assert overlay.getpixel((40, 10)) == (255, 165, 0)
+
+
 def test_build_annotation_distribution_rows_collects_class_and_bbox_sizes() -> None:
     dataset = SimpleNamespace(
         annotations=[

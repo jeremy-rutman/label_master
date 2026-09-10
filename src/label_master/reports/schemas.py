@@ -8,9 +8,9 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from label_master.core.domain.policies import (
-    DEFAULT_CORRECT_OUT_OF_FRAME_BBOXES,
     DEFAULT_MAX_IMAGE_LONGEST_EDGE_PX,
     DEFAULT_MIN_IMAGE_LONGEST_EDGE_PX,
+    DEFAULT_OUT_OF_FRAME_BBOX_POLICY,
     DEFAULT_OUT_OF_FRAME_TOLERANCE_PX,
 )
 from label_master.core.domain.value_objects import ConfigurationError
@@ -107,6 +107,8 @@ class RunConfigModel(BaseModel):
     input_path: str = Field(min_length=1)
     output_path: str | None = None
     src_format: str
+    custom_format_id: str | None = None
+    custom_format_path: str | None = None
     dst_format: Literal["coco", "yolo"] | None = None
     mapping_file: str | None = None
     unmapped_policy: Literal["error", "drop", "identity"] = "error"
@@ -116,7 +118,7 @@ class RunConfigModel(BaseModel):
     input_path_exclude_substring: str | None = None
     validation_mode: Literal["strict", "permissive"] = "strict"
     permissive_invalid_annotation_action: Literal["keep", "drop"] = "keep"
-    correct_out_of_frame_bboxes: bool = DEFAULT_CORRECT_OUT_OF_FRAME_BBOXES
+    out_of_frame_bbox_policy: Literal["correct", "warn", "ignore", "drop"] = DEFAULT_OUT_OF_FRAME_BBOX_POLICY
     out_of_frame_tolerance_px: float = Field(default=DEFAULT_OUT_OF_FRAME_TOLERANCE_PX, ge=0.0)
     min_image_longest_edge_px: int = Field(default=DEFAULT_MIN_IMAGE_LONGEST_EDGE_PX, ge=0)
     max_image_longest_edge_px: int = Field(default=DEFAULT_MAX_IMAGE_LONGEST_EDGE_PX, ge=0)
@@ -190,7 +192,6 @@ def upgrade_run_config_payload(payload: dict[str, Any]) -> dict[str, Any]:
         upgraded.setdefault("unmapped_policy", "error")
         upgraded.setdefault("validation_mode", "strict")
         upgraded.setdefault("permissive_invalid_annotation_action", "keep")
-        upgraded.setdefault("correct_out_of_frame_bboxes", DEFAULT_CORRECT_OUT_OF_FRAME_BBOXES)
         upgraded.setdefault("out_of_frame_tolerance_px", DEFAULT_OUT_OF_FRAME_TOLERANCE_PX)
         upgraded.setdefault("min_image_longest_edge_px", DEFAULT_MIN_IMAGE_LONGEST_EDGE_PX)
         upgraded.setdefault("max_image_longest_edge_px", DEFAULT_MAX_IMAGE_LONGEST_EDGE_PX)
@@ -198,10 +199,21 @@ def upgrade_run_config_payload(payload: dict[str, Any]) -> dict[str, Any]:
         upgraded.setdefault("provider", None)
         upgraded.setdefault("source_ref", None)
 
+    if "correct_out_of_frame_bboxes" in upgraded:
+        old_bool = upgraded.pop("correct_out_of_frame_bboxes")
+        upgraded.setdefault(
+            "out_of_frame_bbox_policy",
+            DEFAULT_OUT_OF_FRAME_BBOX_POLICY if old_bool else "ignore",
+        )
+    else:
+        upgraded.setdefault("out_of_frame_bbox_policy", DEFAULT_OUT_OF_FRAME_BBOX_POLICY)
+
     upgraded.setdefault("permissive_invalid_annotation_action", "keep")
     upgraded.setdefault("allow_overwrite", False)
     upgraded.setdefault("input_path_include_substring", None)
     upgraded.setdefault("input_path_exclude_substring", None)
+    upgraded.setdefault("custom_format_id", None)
+    upgraded.setdefault("custom_format_path", None)
     upgraded["schema_version"] = CURRENT_SCHEMA_VERSION
     return upgraded
 

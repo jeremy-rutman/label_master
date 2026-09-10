@@ -12,7 +12,11 @@ from label_master.infra.filesystem import (
     safe_resolve,
 )
 from label_master.infra.locking import OutputPathLockManager
-from label_master.infra.reporting import build_run_warnings_payload, generate_run_id, persist_run_artifacts
+from label_master.infra.reporting import (
+    build_run_warnings_payload,
+    generate_run_id,
+    persist_run_artifacts,
+)
 from label_master.reports.schemas import (
     DroppedAnnotationModel,
     RunConfigModel,

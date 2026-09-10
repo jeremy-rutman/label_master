@@ -1,0 +1,16 @@
+format_id: bdd100k_detection
+display_name: BDD100K Detection
+description: BDD100K nested image records with labels[].box2d boxes
+parser:
+  kind: bdd100k_image_labels
+  annotations_file: labels/bdd100k_labels_images_train.json
+  image_root: images/100k/train
+  image_name_field: name
+  labels_field: labels
+  label_id_field: id
+  category_field: category
+  bbox_field: box2d
+  x1_field: x1
+  y1_field: y1
+  x2_field: x2
+  y2_field: y2

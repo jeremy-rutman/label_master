@@ -8,6 +8,7 @@ from typing import Any, Callable, Literal
 import yaml
 from pydantic import BaseModel, ConfigDict, Field
 
+from label_master.adapters.cityscapes.reader import read_cityscapes_dataset
 from label_master.adapters.coco.reader import read_coco_dataset
 from label_master.adapters.custom.reader import read_custom_dataset
 from label_master.adapters.kitware.reader import read_kitware_dataset
@@ -24,6 +25,7 @@ from label_master.core.domain.entities import (
 )
 from label_master.core.domain.policies import (
     InvalidAnnotationAction,
+    OutOfFrameBBoxPolicy,
     ValidationMode,
     ValidationPolicy,
 )
@@ -38,6 +40,7 @@ from label_master.infra.filesystem import (
 from label_master.reports.schemas import DroppedAnnotationModel
 
 _BUILTIN_READERS = {
+    "cityscapes": read_cityscapes_dataset,
     "coco": read_coco_dataset,
     "kitware": read_kitware_dataset,
     "matlab_ground_truth": read_matlab_ground_truth_dataset,
@@ -60,7 +63,7 @@ class ValidationOutcome(BaseModel):
 class _ManifestInferenceExpectation(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    top_candidate: Literal["coco", "kitware", "matlab_ground_truth", "voc", "video_bbox", "yolo"]
+    top_candidate: Literal["cityscapes", "coco", "kitware", "matlab_ground_truth", "voc", "video_bbox", "yolo"]
     min_confidence: float = Field(ge=0.0, le=1.0)
     allow_ambiguous: bool = False
 
@@ -75,7 +78,7 @@ class _ManifestValidationExpectation(BaseModel):
 class _ManifestExpected(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    source_format: Literal["coco", "kitware", "matlab_ground_truth", "voc", "video_bbox", "yolo"]
+    source_format: Literal["cityscapes", "coco", "kitware", "matlab_ground_truth", "voc", "video_bbox", "yolo"]
     inference: _ManifestInferenceExpectation
     validation: _ManifestValidationExpectation
 
@@ -143,9 +146,22 @@ def _load_dataset(
     *,
     load_progress_callback: DatasetLoadProgressCallback | None = None,
     input_path_filter: InputPathFilter | None = None,
+    custom_format_id: str | None = None,
+    custom_format_path: Path | None = None,
 ) -> AnnotationDataset:
     if source_format == SourceFormat.CUSTOM:
-        return read_custom_dataset(path, input_path_filter=input_path_filter)
+        return read_custom_dataset(
+            path,
+            format_id=custom_format_id,
+            format_path=custom_format_path,
+            input_path_filter=input_path_filter,
+        )
+    if source_format == SourceFormat.CITYSCAPES:
+        return read_cityscapes_dataset(
+            path,
+            input_path_filter=input_path_filter,
+            progress_callback=load_progress_callback,
+        )
     if source_format == SourceFormat.MATLAB_GROUND_TRUTH:
         return read_matlab_ground_truth_dataset(
             path,
@@ -374,13 +390,13 @@ def _build_dropped_annotation(
     image_file: str | None = None,
     context: dict[str, str] | None = None,
 ) -> DroppedAnnotationModel:
-    class_id = int(getattr(annotation, "class_id"))
+    class_id = int(annotation.class_id)
     category = categories.get(class_id)
     class_name = getattr(category, "name", None)
-    bbox_xywh_abs = getattr(annotation, "bbox_xywh_abs")
+    bbox_xywh_abs = annotation.bbox_xywh_abs
     return DroppedAnnotationModel(
-        annotation_id=str(getattr(annotation, "annotation_id")),
-        image_id=str(getattr(annotation, "image_id")),
+        annotation_id=str(annotation.annotation_id),
+        image_id=str(annotation.image_id),
         image_file=image_file,
         class_id=class_id,
         class_name=class_name if isinstance(class_name, str) and class_name else None,
@@ -555,6 +571,12 @@ def validate_loaded_dataset(
                 corrected_annotations.append(annotation)
                 continue
 
+            oofb_policy = policy.out_of_frame_bbox_policy
+
+            if oofb_policy == OutOfFrameBBoxPolicy.IGNORE:
+                corrected_annotations.append(annotation)
+                continue
+
             clipped_bbox, did_clip = _clip_bbox_to_image_bounds(
                 annotation.bbox_xywh_abs,
                 image_width=image.width,
@@ -562,13 +584,51 @@ def validate_loaded_dataset(
                 tolerance_px=policy.out_of_frame_tolerance_px,
             )
             if clipped_bbox is None:
-                invalid += 1
-                issue_text = "bbox goes out of frame"
-                if policy.correct_out_of_frame_bboxes:
-                    issue_text = (
-                        "bbox goes out of frame beyond the accepted "
-                        f"{policy.out_of_frame_tolerance_px:g}px correction tolerance"
+                if oofb_policy == OutOfFrameBBoxPolicy.WARN:
+                    fx, fy, fw, fh = annotation.bbox_xywh_abs
+                    iw_f, ih_f = float(image.width), float(image.height)
+                    cx = min(max(fx, 0.0), iw_f)
+                    cy = min(max(fy, 0.0), ih_f)
+                    force_clipped = (cx, cy, min(max(fx + fw, 0.0), iw_f) - cx, min(max(fy + fh, 0.0), ih_f) - cy)
+                    if force_clipped[2] > 0 and force_clipped[3] > 0:
+                        warnings.append(
+                            WarningEvent(
+                                code="bbox_clipped_out_of_frame",
+                                message=(
+                                    f"Annotation {annotation.annotation_id} bbox was clipped to image bounds "
+                                    f"(overflow exceeded {policy.out_of_frame_tolerance_px:g}px tolerance)."
+                                ),
+                                severity=Severity.WARNING,
+                                context={
+                                    "annotation_id": annotation.annotation_id,
+                                    "image_id": annotation.image_id,
+                                    "image_file": image.file_name or "",
+                                },
+                            )
+                        )
+                        clipped += 1
+                        corrected_annotations.append(
+                            annotation.model_copy(update={"bbox_xywh_abs": force_clipped})
+                        )
+                    continue
+                if oofb_policy == OutOfFrameBBoxPolicy.DROP:
+                    dropped_invalid += 1
+                    dropped_annotations.append(
+                        _build_dropped_annotation(
+                            annotation=annotation,
+                            categories=dataset.categories,
+                            stage="validation",
+                            reason_code="bbox_out_of_frame_dropped",
+                            reason="bbox goes out of frame (drop policy)",
+                            image_file=image.file_name,
+                        )
                     )
+                    continue
+                invalid += 1
+                issue_text = (
+                    "bbox goes out of frame beyond the accepted "
+                    f"{policy.out_of_frame_tolerance_px:g}px correction tolerance"
+                )
                 issue_row = _build_issue_row(
                     issue_kind="First issue" if not issue_rows_sample else "Sample issue",
                     issue=issue_text,
@@ -604,43 +664,37 @@ def validate_loaded_dataset(
                 continue
 
             if did_clip:
-                if policy.correct_out_of_frame_bboxes:
+                if oofb_policy == OutOfFrameBBoxPolicy.WARN:
+                    warnings.append(
+                        WarningEvent(
+                            code="bbox_clipped_out_of_frame",
+                            message=f"Annotation {annotation.annotation_id} bbox was clipped to image bounds.",
+                            severity=Severity.WARNING,
+                            context={
+                                "annotation_id": annotation.annotation_id,
+                                "image_id": annotation.image_id,
+                                "image_file": image.file_name or "",
+                            },
+                        )
+                    )
                     clipped += 1
                     corrected_annotations.append(annotation.model_copy(update={"bbox_xywh_abs": clipped_bbox}))
                     continue
-                invalid += 1
-                issue_row = _build_issue_row(
-                    issue_kind="First issue" if not issue_rows_sample else "Sample issue",
-                    issue="bbox goes out of frame",
-                    annotation_id=annotation.annotation_id,
-                    image_id=annotation.image_id,
-                    bbox_xywh_abs=annotation.bbox_xywh_abs,
-                    image_file=image.file_name,
-                    image_width=image.width,
-                    image_height=image.height,
-                    include_overflow=True,
-                )
-                errors.append(_issue_message(issue_row))
-                if len(issue_rows_sample) < 5:
-                    issue_rows_sample.append(issue_row)
-                if (
-                    policy.mode == ValidationMode.PERMISSIVE
-                    and policy.invalid_annotation_action == InvalidAnnotationAction.DROP
-                ):
+                if oofb_policy == OutOfFrameBBoxPolicy.DROP:
                     dropped_invalid += 1
                     dropped_annotations.append(
                         _build_dropped_annotation(
                             annotation=annotation,
                             categories=dataset.categories,
                             stage="validation",
-                            reason_code="bbox_out_of_frame",
-                            reason="bbox goes out of frame",
+                            reason_code="bbox_out_of_frame_dropped",
+                            reason="bbox goes out of frame (drop policy)",
                             image_file=image.file_name,
-                            context=_dropped_annotation_context(issue_row),
                         )
                     )
                     continue
-                corrected_annotations.append(annotation)
+                clipped += 1
+                corrected_annotations.append(annotation.model_copy(update={"bbox_xywh_abs": clipped_bbox}))
                 continue
 
             corrected_annotations.append(annotation)
@@ -716,6 +770,8 @@ def validate_dataset(
     annotation_progress_callback: AnnotationValidationProgressCallback | None = None,
     input_path_include_substring: str | None = None,
     input_path_exclude_substring: str | None = None,
+    custom_format_id: str | None = None,
+    custom_format_path: Path | None = None,
 ) -> ValidationOutcome:
     policy = policy or ValidationPolicy(mode=ValidationMode.STRICT)
     input_path_filter = build_input_path_filter(
@@ -727,6 +783,7 @@ def validate_dataset(
     if source_format == SourceFormat.AUTO:
         inferred = infer_format(input_path, force=True)
         if inferred.predicted_format in {
+            SourceFormat.CITYSCAPES,
             SourceFormat.COCO,
             SourceFormat.CUSTOM,
             SourceFormat.KITWARE,
@@ -747,6 +804,8 @@ def validate_dataset(
         resolved_format,
         load_progress_callback=load_progress_callback,
         input_path_filter=input_path_filter,
+        custom_format_id=custom_format_id,
+        custom_format_path=custom_format_path,
     )
     dataset = _apply_input_path_filter_to_dataset(
         dataset,

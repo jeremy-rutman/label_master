@@ -9,6 +9,7 @@ import pytest
 from label_master.core.domain.entities import SourceFormat
 from label_master.core.domain.policies import (
     InvalidAnnotationAction,
+    OutOfFrameBBoxPolicy,
     ValidationMode,
     ValidationPolicy,
 )
@@ -161,17 +162,15 @@ def test_validate_dataset_can_disable_out_of_frame_correction(tmp_path) -> None:
         source_format=SourceFormat.COCO,
         policy=ValidationPolicy.for_mode(
             ValidationMode.PERMISSIVE,
-            correct_out_of_frame_bboxes=False,
+            out_of_frame_bbox_policy=OutOfFrameBBoxPolicy.IGNORE,
         ),
     )
 
-    assert outcome.summary.invalid_annotations == 1
+    # The ignore policy keeps out-of-frame boxes untouched and does not flag them.
+    assert outcome.summary.invalid_annotations == 0
     assert outcome.dataset.annotations[0].bbox_xywh_abs == (91.0, 40.0, 10.0, 10.0)
     assert outcome.warnings == []
-    assert "Annotation ann-1 bbox goes out of frame" in outcome.summary.errors[0]
-    assert "bbox_xywh_abs=(91.00, 40.00, 10.00, 10.00)" in outcome.summary.errors[0]
-    assert "frame_bounds=width=100, height=50" in outcome.summary.errors[0]
-    assert "overflow_px=right=1.00" in outcome.summary.errors[0]
+    assert outcome.summary.errors == []
 
 
 def test_validate_dataset_honors_custom_out_of_frame_tolerance(tmp_path) -> None:  # type: ignore[no-untyped-def]

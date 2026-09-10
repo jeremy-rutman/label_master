@@ -1,0 +1,32 @@
+{
+  "contention_events": [
+    {
+      "competing_run_id": "convert-54c9e3d649e3",
+      "output_path": "/tmp/neovision2_yolo_final",
+      "resolution": "last_write_wins",
+      "resolved_at": "2026-06-10T16:05:53.142721Z",
+      "run_id": "convert-a9371fac9097"
+    }
+  ],
+  "dst_format": "yolo",
+  "git_commit": null,
+  "input_path": "/tmp/neovision2_full",
+  "output_path": "/tmp/neovision2_yolo_final",
+  "provenance": [],
+  "run_id": "convert-a9371fac9097",
+  "schema_version": "1.1",
+  "src_format": "custom",
+  "status": "completed",
+  "summary_counts": {
+    "annotations_in": 9267,
+    "annotations_out": 6045,
+    "dropped": 92,
+    "images": 1797,
+    "invalid": 0,
+    "skipped": 312,
+    "unmapped": 0
+  },
+  "timestamp": "2026-06-10T16:07:00.693373Z",
+  "tool_version": "0.1.0",
+  "warnings": []
+}

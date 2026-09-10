@@ -8,6 +8,8 @@ Requires-Dist: typer<1,>=0.12
 Requires-Dist: streamlit<2,>=1.40
 Requires-Dist: pydantic<3,>=2.7
 Requires-Dist: PyYAML<7,>=6
+Requires-Dist: pyarrow<24,>=23
+Requires-Dist: scipy<2,>=1.13
 Requires-Dist: jsonschema<5,>=4.22
 Requires-Dist: httpx<1,>=0.27
 Provides-Extra: dev
@@ -48,6 +50,63 @@ source .venv/bin/activate
 python -m pip install --upgrade pip
 python -m pip install -e '.[dev]'
 ```
+
+## Running the app
+
+After you activate `.venv` and finish the editable install, this repo can be used in two ways.
+
+### CLI
+
+The package installs the `annobox` command-line tool.
+
+Show the available commands:
+
+```bash
+annobox --help
+```
+
+Common examples:
+
+```bash
+annobox infer --input tests/fixtures/us1/coco_minimal
+annobox validate --input tests/fixtures/us1/coco_minimal
+annobox convert --input tests/fixtures/us1/coco_minimal --output /tmp/label_master_out --src coco --dst yolo
+```
+
+### GUI
+
+The Streamlit GUI entry point is [src/label_master/interfaces/gui/app.py](src/label_master/interfaces/gui/app.py).
+
+Run it with:
+
+```bash
+python -m streamlit run src/label_master/interfaces/gui/app.py
+```
+
+The GUI defaults to the sample dataset at `tests/fixtures/us1/coco_minimal`, so you can launch it and try the workflow immediately after installation.
+
+The repo also includes [/.streamlit/config.toml](.streamlit/config.toml) to force Streamlit to use polling-based file watching, which avoids Linux `inotify watch limit reached` errors on larger trees.
+
+If you see `ModuleNotFoundError` for `typer` or `streamlit`, the virtual environment is not active yet or the install step did not complete.
+
+## setup.py note
+
+This repository uses [pyproject.toml](./pyproject.toml) as the source of truth for packaging metadata. The root-level `setup.py` is a minimal compatibility shim for older tooling that still expects it.
+
+It is safe to run commands such as:
+
+```bash
+python3 setup.py --version
+python3 setup.py egg_info
+```
+
+For normal installation and development setup, prefer:
+
+```bash
+python -m pip install -e '.[dev]'
+```
+
+Avoid using `python setup.py install` unless you specifically need legacy behavior.
 
 ## Common development commands
 

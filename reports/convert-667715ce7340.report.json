@@ -1,0 +1,24 @@
+{
+  "contention_events": [],
+  "dst_format": "yolo",
+  "git_commit": null,
+  "input_path": "/tmp/fbd_sv_vid_smoke",
+  "output_path": "/tmp/fbd_sv_vid_smoke_yolo",
+  "provenance": [],
+  "run_id": "convert-667715ce7340",
+  "schema_version": "1.1",
+  "src_format": "voc",
+  "status": "completed",
+  "summary_counts": {
+    "annotations_in": 10,
+    "annotations_out": 10,
+    "dropped": 0,
+    "images": 20,
+    "invalid": 0,
+    "skipped": 0,
+    "unmapped": 0
+  },
+  "timestamp": "2026-06-05T17:48:10.065519Z",
+  "tool_version": "0.1.0",
+  "warnings": []
+}

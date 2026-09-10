@@ -1,16 +1,22 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
+import label_master.interfaces.gui.app as gui_app
 from label_master.core.domain.value_objects import ValidationError
 from label_master.interfaces.gui.app import (
     DEFAULT_DESTINATION_FORMAT,
+    DEFAULT_PREVIEW_SCAN_LIMIT,
     DESTINATION_FORMATS,
     _build_inference_payload,
     _coerce_preview_keyboard_navigation_action,
     _consume_preview_skip_once,
     _format_oversize_image_action_label,
     _inference_payload_matches_input_path,
+    _materialize_approved_missing_label_hints,
+    _missing_label_review_key,
+    _resolve_missing_label_hints_output_dir,
     _resolve_preview_index,
     default_gui_input_directory,
     format_details_yaml,
@@ -23,6 +29,10 @@ from label_master.interfaces.gui.app import (
     persist_last_used_input_directory,
     run_blocking_errors,
     validate_input_directory,
+)
+from label_master.interfaces.gui.viewmodels import (
+    MissingLabelHintDetectionViewModel,
+    MissingLabelHintItemViewModel,
 )
 
 
@@ -51,6 +61,44 @@ def test_resolve_preview_index_handles_navigation_actions() -> None:
     assert _resolve_preview_index(3, max_index=9, next_clicked=True) == 4
     assert _resolve_preview_index(0, max_index=9, keyboard_action="previous") == 0
     assert _resolve_preview_index(9, max_index=9, next_clicked=True) == 9
+
+
+def test_resolve_missing_label_hints_output_dir_defaults_under_output_dir() -> None:
+    assert _resolve_missing_label_hints_output_dir("/tmp/output", "") == (
+        Path("/tmp/output") / "missing_label_hints"
+    )
+
+
+def test_materialize_approved_missing_label_hints_filters_by_image_and_detection() -> None:
+    hint = MissingLabelHintItemViewModel(
+        image_rel_path="train/images/example.jpg",
+        suggested_label_rel_path="train/labels/example.txt",
+        detections=[
+            MissingLabelHintDetectionViewModel(
+                class_id=0,
+                class_name="drone",
+                confidence=0.9,
+                bbox_xywh_normalized=(0.5, 0.5, 0.2, 0.4),
+            ),
+            MissingLabelHintDetectionViewModel(
+                class_id=1,
+                class_name="bird",
+                confidence=0.4,
+                bbox_xywh_normalized=(0.25, 0.4, 0.1, 0.2),
+            ),
+        ],
+    )
+    session_state = {
+        _missing_label_review_key("approve", "train/labels/example.txt"): True,
+        _missing_label_review_key("detection", "train/labels/example.txt", detection_index=0): True,
+        _missing_label_review_key("detection", "train/labels/example.txt", detection_index=1): False,
+    }
+
+    approved = _materialize_approved_missing_label_hints([hint], session_state)
+
+    assert len(approved) == 1
+    assert approved[0].suggested_label_rel_path == "train/labels/example.txt"
+    assert [item.class_name for item in approved[0].detections] == ["drone"]
 
 
 def test_build_inference_payload_tracks_input_directory(tmp_path) -> None:  # type: ignore[no-untyped-def]
@@ -126,6 +174,18 @@ def test_run_blocking_errors_include_mapping_errors(tmp_path) -> None:  # type: 
         mapping_errors=["Row 2: duplicate source_class_id 3"],
     )
     assert "Row 2: duplicate source_class_id 3" in errors
+
+
+def test_run_blocking_errors_accepts_cityscapes_source(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    errors = run_blocking_errors(
+        input_dir_raw=str(tmp_path),
+        output_dir_raw=str(tmp_path / "out"),
+        src="cityscapes",
+        dst="yolo",
+        mapping_errors=[],
+    )
+
+    assert errors == []
 
 
 def test_format_run_exception_details_surfaces_validation_context() -> None:
@@ -219,6 +279,51 @@ def test_format_details_yaml_renders_video_bbox_token_mapping() -> None:
     assert "xmin: 1" in rendered
     assert "ymin: 2" in rendered
     assert "class_name: 5" in rendered
+
+
+def test_format_details_yaml_prefers_selected_custom_spec(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    format_specs_root = tmp_path / "format_specs"
+    format_specs_root.mkdir(parents=True, exist_ok=True)
+    (format_specs_root / "bdd100k_detection.yaml").write_text(
+        "\n".join(
+            [
+                "format_id: bdd100k_detection",
+                "display_name: BDD100K Detection",
+                "parser:",
+                "  kind: bdd100k_image_labels",
+                "  annotations_file: labels/train.json",
+                "  image_root: images",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    (format_specs_root / "other_format.yaml").write_text(
+        "\n".join(
+            [
+                "format_id: other_format",
+                "display_name: Other Format",
+                "parser:",
+                "  kind: bdd100k_image_labels",
+                "  annotations_file: labels/other.json",
+                "  image_root: images",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    rendered = format_details_yaml(
+        "custom",
+        dataset_root=tmp_path,
+        custom_format_id="bdd100k_detection",
+        inference_payload=None,
+    )
+
+    assert rendered is not None
+    assert "format_id: bdd100k_detection" in rendered
+    assert "annotations_file: labels/train.json" in rendered
+    assert "format_id: other_format" not in rendered
 
 
 def test_run_blocking_errors_reject_invalid_size_gate_configuration(tmp_path) -> None:  # type: ignore[no-untyped-def]
@@ -337,6 +442,7 @@ def test_persist_gui_state_round_trips_full_payload(tmp_path) -> None:  # type: 
         "last_allow_overwrite": True,
         "last_input_path_include_substring": "train",
         "last_input_path_exclude_substring": "backup",
+        "last_custom_format_path": "/tmp/custom_format.yaml",
         "last_output_file_stem_prefix": "batchA_",
         "last_output_file_stem_suffix": "_fold1",
         "last_inference_payload": {"predicted_format": "kitware", "confidence": 1.0},
@@ -382,11 +488,22 @@ def test_load_persisted_gui_preferences_restores_mapping_and_output_state(
             "last_input_path_exclude_substring": "backup",
             "last_output_file_stem_prefix": "batchA_",
             "last_output_file_stem_suffix": "_fold1",
-            "last_correct_out_of_frame_bboxes": False,
+            "last_out_of_frame_bbox_policy": "ignore",
             "last_out_of_frame_tolerance_px": 2.5,
             "last_min_image_longest_edge_px": 320,
             "last_max_image_longest_edge_px": 1440,
             "last_oversize_image_action": "downscale",
+            "last_custom_format_id": "bdd100k_detection",
+            "last_custom_format_path": "/tmp/custom_format.yaml",
+            "last_missing_label_detector_model_path": "/tmp/models/yolo.pt",
+            "last_missing_label_hints_output_dir": "/tmp/hints",
+            "last_missing_label_confidence_threshold": 0.35,
+            "last_missing_label_iou_threshold": 0.55,
+            "last_missing_label_max_detections_per_image": 175,
+            "last_bbox_audit_output_dir": "/tmp/audit",
+            "last_bbox_audit_match_iou_threshold": 0.4,
+            "last_bbox_audit_correction_iou_threshold": 0.9,
+            "last_bbox_audit_max_labeled_images": 250,
             "last_inference_payload": {"predicted_format": "kitware", "confidence": 0.99},
             "last_mapping_rows": [
                 {"source_class_id": "3", "action": "map", "destination_class_id": "10"},
@@ -410,16 +527,60 @@ def test_load_persisted_gui_preferences_restores_mapping_and_output_state(
     assert preferences["gui_input_path_exclude_substring"] == "backup"
     assert preferences["gui_output_file_stem_prefix"] == "batchA_"
     assert preferences["gui_output_file_stem_suffix"] == "_fold1"
-    assert preferences["gui_correct_out_of_frame_bboxes"] is False
+    assert preferences["gui_out_of_frame_bbox_policy"] == "ignore"
     assert preferences["gui_out_of_frame_tolerance_px"] == 2.5
     assert preferences["gui_min_image_longest_edge_px"] == 320
     assert preferences["gui_max_image_longest_edge_px"] == 1440
     assert preferences["gui_oversize_image_action"] == "downscale"
+    assert preferences["gui_custom_format_id"] == "bdd100k_detection"
+    assert preferences["gui_custom_format_path"] == "/tmp/custom_format.yaml"
+    assert preferences["gui_missing_label_detector_model_path"] == "/tmp/models/yolo.pt"
+    assert preferences["gui_missing_label_hints_output_dir"] == "/tmp/hints"
+    assert preferences["gui_missing_label_confidence_threshold"] == 0.35
+    assert preferences["gui_missing_label_iou_threshold"] == 0.55
+    assert preferences["gui_missing_label_max_detections_per_image"] == 175
+    assert preferences["gui_bbox_audit_output_dir"] == "/tmp/audit"
+    assert preferences["gui_bbox_audit_match_iou_threshold"] == 0.4
+    assert preferences["gui_bbox_audit_correction_iou_threshold"] == 0.9
+    assert preferences["gui_bbox_audit_max_labeled_images"] == 250
     assert preferences["gui_inference_payload"] == {"predicted_format": "kitware", "confidence": 0.99}
     assert preferences["gui_mapping_rows"] == [
         {"source_class_id": "3", "action": "map", "destination_class_id": "10"},
     ]
     assert preferences["gui_mapping_seed_signature"] == "dataset-signature"
+
+
+def test_build_persistable_gui_state_includes_detector_review_defaults(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    monkeypatch.setattr(
+        gui_app.st,
+        "session_state",
+        {
+            "gui_last_persisted_input_dir": "/tmp/input",
+            "gui_output_dir": "/tmp/output",
+            "gui_missing_label_detector_model_path": "/tmp/models/yolo.pt",
+            "gui_missing_label_hints_output_dir": "/tmp/hints",
+            "gui_missing_label_confidence_threshold": 0.35,
+            "gui_missing_label_iou_threshold": 0.55,
+            "gui_missing_label_max_detections_per_image": 175,
+            "gui_bbox_audit_output_dir": "/tmp/audit",
+            "gui_bbox_audit_match_iou_threshold": 0.4,
+            "gui_bbox_audit_correction_iou_threshold": 0.9,
+            "gui_bbox_audit_max_labeled_images": 250,
+        },
+        raising=False,
+    )
+
+    payload = gui_app._build_persistable_gui_state()
+
+    assert payload["last_missing_label_detector_model_path"] == "/tmp/models/yolo.pt"
+    assert payload["last_missing_label_hints_output_dir"] == "/tmp/hints"
+    assert payload["last_missing_label_confidence_threshold"] == 0.35
+    assert payload["last_missing_label_iou_threshold"] == 0.55
+    assert payload["last_missing_label_max_detections_per_image"] == 175
+    assert payload["last_bbox_audit_output_dir"] == "/tmp/audit"
+    assert payload["last_bbox_audit_match_iou_threshold"] == 0.4
+    assert payload["last_bbox_audit_correction_iou_threshold"] == 0.9
+    assert payload["last_bbox_audit_max_labeled_images"] == 250
 
 
 def test_load_persisted_gui_preferences_defaults_out_of_frame_tolerance_to_20(
@@ -429,8 +590,9 @@ def test_load_persisted_gui_preferences_defaults_out_of_frame_tolerance_to_20(
 
     assert preferences["gui_validation_mode"] == "strict"
     assert preferences["gui_permissive_invalid_annotation_action"] == "keep"
-    assert preferences["gui_correct_out_of_frame_bboxes"] is True
+    assert preferences["gui_out_of_frame_bbox_policy"] == "correct"
     assert preferences["gui_out_of_frame_tolerance_px"] == 20.0
+    assert preferences["gui_preview_scan_limit"] == DEFAULT_PREVIEW_SCAN_LIMIT
 
 
 def test_load_persisted_gui_preferences_migrates_zero_out_of_frame_tolerance_when_enabled(
@@ -439,7 +601,7 @@ def test_load_persisted_gui_preferences_migrates_zero_out_of_frame_tolerance_whe
     state_path = tmp_path / "gui_state.json"
     persist_gui_state(
         {
-            "last_correct_out_of_frame_bboxes": True,
+            "last_out_of_frame_bbox_policy": "correct",
             "last_out_of_frame_tolerance_px": 0.0,
         },
         state_path=state_path,

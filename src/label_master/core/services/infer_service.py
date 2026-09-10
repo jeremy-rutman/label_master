@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Callable
 
+from label_master.adapters.cityscapes.detector import detect_cityscapes
 from label_master.adapters.coco.detector import detect_coco
 from label_master.adapters.custom.detector import detect_custom_format
 from label_master.adapters.kitware.detector import detect_kitware
@@ -24,6 +25,7 @@ from label_master.format_specs.registry import load_builtin_format_specs
 
 def _builtin_detectors() -> dict[str, Callable[..., float]]:
     return {
+        "cityscapes": detect_cityscapes,
         "coco": detect_coco,
         "kitware": detect_kitware,
         "matlab_ground_truth": detect_matlab_ground_truth,

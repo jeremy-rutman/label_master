@@ -11,6 +11,7 @@ from typing import Callable, Literal
 from PIL import Image
 
 from label_master.adapters.coco.writer import write_coco_dataset
+from label_master.adapters.custom.waymo_parquet import materialize_waymo_parquet_frames
 from label_master.adapters.video_bbox.reader import materialize_video_bbox_frames
 from label_master.adapters.yolo.writer import (
     image_output_rel_path_for_image,
@@ -20,18 +21,19 @@ from label_master.adapters.yolo.writer import (
 from label_master.core.domain.entities import (
     AnnotationDataset,
     AnnotationRecord,
+    CategoryRecord,
     ImageRecord,
     Severity,
     SourceFormat,
     WarningEvent,
 )
 from label_master.core.domain.policies import (
-    DEFAULT_CORRECT_OUT_OF_FRAME_BBOXES,
     DEFAULT_MAX_IMAGE_LONGEST_EDGE_PX,
     DEFAULT_MIN_IMAGE_LONGEST_EDGE_PX,
     DEFAULT_OUT_OF_FRAME_TOLERANCE_PX,
     InvalidAnnotationAction,
     OversizeImageAction,
+    OutOfFrameBBoxPolicy,
     RemapPolicy,
     UnmappedPolicy,
     ValidationMode,
@@ -64,7 +66,13 @@ class ConvertRequest:
     output_path: Path | None
     src_format: SourceFormat
     dst_format: SourceFormat | None
+    custom_format_id: str | None = None
+    custom_format_path: Path | None = None
     class_map: dict[int, int | None] = field(default_factory=dict)
+    name_class_map: dict[str, str | None] = field(default_factory=dict)
+    class_id_overrides: dict[str, int] = field(default_factory=dict)
+    drop_frames_with_class_names: frozenset[str] = field(default_factory=frozenset)
+    drop_frames_with_class_ids: frozenset[int] = field(default_factory=frozenset)
     unmapped_policy: UnmappedPolicy = UnmappedPolicy.ERROR
     dry_run: bool = False
     force_infer: bool = False
@@ -78,7 +86,7 @@ class ConvertRequest:
     flatten_output_layout: bool = False
     validation_mode: ValidationMode = ValidationMode.STRICT
     permissive_invalid_annotation_action: InvalidAnnotationAction = InvalidAnnotationAction.KEEP
-    correct_out_of_frame_bboxes: bool = DEFAULT_CORRECT_OUT_OF_FRAME_BBOXES
+    out_of_frame_bbox_policy: OutOfFrameBBoxPolicy = OutOfFrameBBoxPolicy.CORRECT
     out_of_frame_tolerance_px: float = DEFAULT_OUT_OF_FRAME_TOLERANCE_PX
     min_image_longest_edge_px: int = DEFAULT_MIN_IMAGE_LONGEST_EDGE_PX
     max_image_longest_edge_px: int = DEFAULT_MAX_IMAGE_LONGEST_EDGE_PX
@@ -95,13 +103,79 @@ class ConvertResult:
     dropped_annotations: list[DroppedAnnotationModel]
 
 
-RunSrcFormatLiteral = Literal["auto", "coco", "custom", "kitware", "matlab_ground_truth", "voc", "video_bbox", "yolo"]
+RunSrcFormatLiteral = Literal["auto", "cityscapes", "coco", "custom", "kitware", "matlab_ground_truth", "voc", "video_bbox", "yolo"]
 RunDstFormatLiteral = Literal["coco", "yolo"]
 ConversionProgressCallback = Callable[[str, int], None]
 try:
     _IMAGE_RESAMPLING_LANCZOS = Image.Resampling.LANCZOS
 except AttributeError:  # pragma: no cover - compatibility with older Pillow
     _IMAGE_RESAMPLING_LANCZOS = Image.LANCZOS  # type: ignore[attr-defined]
+
+
+def _drop_frames_with_classes(
+    dataset: AnnotationDataset,
+    drop_class_names: frozenset[str],
+    drop_class_ids: frozenset[int],
+) -> AnnotationDataset:
+    tainted_ids = set(drop_class_ids)
+    for cat in dataset.categories.values():
+        if cat.name in drop_class_names:
+            tainted_ids.add(cat.class_id)
+    if not tainted_ids:
+        return dataset
+    tainted_image_ids = {
+        ann.image_id for ann in dataset.annotations if ann.class_id in tainted_ids
+    }
+    if not tainted_image_ids:
+        return dataset
+    filtered_images = [img for img in dataset.images if img.image_id not in tainted_image_ids]
+    filtered_annotations = [ann for ann in dataset.annotations if ann.image_id not in tainted_image_ids]
+    return dataset.model_copy(update={"images": filtered_images, "annotations": filtered_annotations})
+
+
+def _resolve_name_class_map(
+    dataset: AnnotationDataset,
+    name_class_map: dict[str, str | None],
+    class_id_overrides: dict[str, int],
+) -> dict[int, int | None]:
+    name_to_source_id = {cat.name: cat.class_id for cat in dataset.categories.values()}
+    dest_names = sorted({v for v in name_class_map.values() if v is not None})
+    explicitly_assigned = set(class_id_overrides.values())
+    next_auto_id = 0
+    dest_name_to_id: dict[str, int] = {}
+    for name in dest_names:
+        if name in class_id_overrides:
+            dest_name_to_id[name] = class_id_overrides[name]
+        else:
+            while next_auto_id in explicitly_assigned:
+                next_auto_id += 1
+            dest_name_to_id[name] = next_auto_id
+            next_auto_id += 1
+
+    resolved: dict[int, int | None] = {}
+    for source_name, dest_name in name_class_map.items():
+        source_id = name_to_source_id.get(source_name)
+        if source_id is None:
+            continue
+        resolved[source_id] = dest_name_to_id[dest_name] if dest_name is not None else None
+    return resolved
+
+
+def _apply_extra_categories(
+    dataset: AnnotationDataset,
+    class_id_overrides: dict[str, int],
+) -> AnnotationDataset:
+    id_to_name = {class_id: name for name, class_id in class_id_overrides.items()}
+    updated: dict[int, CategoryRecord] = {}
+    for class_id, cat in dataset.categories.items():
+        name = id_to_name.get(class_id, cat.name)
+        updated[class_id] = CategoryRecord(class_id=class_id, name=name)
+    for name, class_id in class_id_overrides.items():
+        if class_id not in updated:
+            updated[class_id] = CategoryRecord(class_id=class_id, name=name)
+    if updated == dataset.categories:
+        return dataset
+    return dataset.model_copy(update={"categories": updated})
 
 
 def _emit_progress(
@@ -988,6 +1062,55 @@ def _copy_images_to_output(
         )
         return warnings
 
+    if dataset.dataset.source_metadata.details.get("media_kind") == "parquet_image_collection":
+        _emit_progress(
+            progress_callback,
+            message="Materializing parquet images...",
+            percent=start_percent,
+        )
+        output_images_for_materialization = [
+            image.model_copy(
+                update={
+                    "file_name": (
+                        image_output_rel_path_for_image(
+                            image.file_name,
+                            image.image_id,
+                            flatten_output_layout=flatten_output_layout,
+                            output_file_stem_prefix=output_file_stem_prefix,
+                            output_file_stem_suffix=output_file_stem_suffix,
+                        ).as_posix()
+                        if destination_format == SourceFormat.YOLO
+                        else image.file_name
+                    )
+                }
+            )
+            for image in [output_images_by_id[item.image_id] for item in source_images]
+        ]
+        materialize_waymo_parquet_frames(
+            dataset_root=input_root,
+            images=source_images,
+            output_root=output_root,
+            output_images=output_images_for_materialization,
+            progress_callback=(
+                lambda source_name, completed_frames, total_frames: _emit_progress(
+                    progress_callback,
+                    message=f"Materializing parquet images from {source_name} ({completed_frames}/{total_frames})",
+                    percent=_interpolate_progress(
+                        start_percent=start_percent,
+                        end_percent=end_percent,
+                        completed_units=completed_frames,
+                        total_units=total_frames,
+                    ),
+                )
+            ),
+        )
+        _emit_progress(
+            progress_callback,
+            message="Finished materializing parquet images.",
+            percent=end_percent,
+        )
+        return warnings
+
     total_images = len(source_images)
     update_every = max(total_images // 100, 1) if total_images else 1
     _emit_progress(progress_callback, message="Copying images...", percent=start_percent)
@@ -1075,6 +1198,7 @@ def execute_conversion(
         inference = infer_format(request.input_path, force=request.force_infer)
         inference_warnings = inference.warnings
         if inference.predicted_format not in {
+            SourceFormat.CITYSCAPES,
             SourceFormat.COCO,
             SourceFormat.CUSTOM,
             SourceFormat.KITWARE,
@@ -1100,7 +1224,7 @@ def execute_conversion(
         policy=ValidationPolicy.for_mode(
             request.validation_mode,
             invalid_annotation_action=request.permissive_invalid_annotation_action,
-            correct_out_of_frame_bboxes=request.correct_out_of_frame_bboxes,
+            out_of_frame_bbox_policy=request.out_of_frame_bbox_policy,
             out_of_frame_tolerance_px=request.out_of_frame_tolerance_px,
         ),
         load_progress_callback=(
@@ -1127,6 +1251,8 @@ def execute_conversion(
                 ),
             )
         ),
+        custom_format_id=request.custom_format_id,
+        custom_format_path=request.custom_format_path,
         input_path_include_substring=request.input_path_include_substring,
         input_path_exclude_substring=request.input_path_exclude_substring,
     )
@@ -1158,15 +1284,32 @@ def execute_conversion(
         oversize_image_action=request.oversize_image_action,
     )
     dropped_annotations.extend(size_gate_dropped_annotations)
-    if request.class_map:
+    if request.drop_frames_with_class_names or request.drop_frames_with_class_ids:
+        working_dataset = _drop_frames_with_classes(
+            working_dataset,
+            request.drop_frames_with_class_names,
+            request.drop_frames_with_class_ids,
+        )
+
+    effective_class_map = dict(request.class_map)
+    if request.name_class_map:
+        resolved = _resolve_name_class_map(
+            working_dataset, request.name_class_map, request.class_id_overrides
+        )
+        effective_class_map.update(resolved)
+
+    if effective_class_map:
         _emit_progress(progress_callback, message="Applying class remap...", percent=45)
         remap_result = apply_class_remap(
             working_dataset,
-            request.class_map,
+            effective_class_map,
             policy=RemapPolicy(unmapped_policy=request.unmapped_policy),
         )
         working_dataset = remap_result.dataset
         dropped_annotations.extend(remap_result.dropped_annotations)
+
+    if request.class_id_overrides:
+        working_dataset = _apply_extra_categories(working_dataset, request.class_id_overrides)
 
     output_file_name_prefix = (
         sanitize_output_file_name_prefix(request.output_file_name_prefix)
@@ -1216,6 +1359,7 @@ def execute_conversion(
         _emit_progress(progress_callback, message="Acquiring output lock...", percent=58)
         events = lock_manager.acquire(request.output_path, request.run_id)
         contention_events = [ContentionEventModel.model_validate(event.model_dump(mode="python")) for event in events]
+        allow_output_overwrite = request.allow_overwrite or bool(contention_events)
         overwrite_warnings = _ensure_output_targets_do_not_already_exist(
             output_dataset,
             output_root=request.output_path,
@@ -1225,7 +1369,7 @@ def execute_conversion(
             output_file_name_prefix=output_file_name_prefix,
             output_file_stem_prefix=output_file_stem_prefix,
             output_file_stem_suffix=output_file_stem_suffix,
-            allow_overwrite=request.allow_overwrite,
+            allow_overwrite=allow_output_overwrite,
         )
 
         destination = resolved_destination
@@ -1360,7 +1504,7 @@ def execute_dry_run(
         flatten_output_layout=request.flatten_output_layout,
         validation_mode=request.validation_mode,
         permissive_invalid_annotation_action=request.permissive_invalid_annotation_action,
-        correct_out_of_frame_bboxes=request.correct_out_of_frame_bboxes,
+        out_of_frame_bbox_policy=request.out_of_frame_bbox_policy,
         out_of_frame_tolerance_px=request.out_of_frame_tolerance_px,
         min_image_longest_edge_px=request.min_image_longest_edge_px,
         max_image_longest_edge_px=request.max_image_longest_edge_px,

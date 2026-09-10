@@ -249,6 +249,18 @@ def test_describe_class_label_source_voc() -> None:
     assert description == "VOC labels source: Pascal VOC XML object names."
 
 
+def test_describe_class_label_source_cityscapes() -> None:
+    description = describe_class_label_source(
+        input_path=Path("tests/fixtures/us1/coco_minimal"),
+        source_format="cityscapes",
+        class_labels={0: "person"},
+    )
+
+    assert description == (
+        "Cityscapes labels source: polygon instance labels normalized from Cityscapes JSON annotations."
+    )
+
+
 def test_describe_class_label_source_video_bbox() -> None:
     description = describe_class_label_source(
         input_path=Path("tests/fixtures/us5"),

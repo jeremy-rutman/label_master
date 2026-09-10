@@ -1,0 +1,26 @@
+# Example per-image classification config for the GUI "7. Classification" tab.
+#
+# Copy this file to the dataset root as `classification.yaml` (also accepted:
+# classification.yml, classification.json, classification_config.yaml), or point
+# the GUI at it with the "Classification config" field.
+#
+# Each class gets one keystroke. Keys are case-insensitive single characters.
+# You may also write `classes: [helicopter, airplane, bird]` and keys are then
+# assigned automatically as 1-9, 0, a-z. A YOLO `names:` list/mapping works too.
+classes:
+  - key: "1"
+    name: helicopter
+  - key: "2"
+    name: airplane
+  - key: "3"
+    name: bird
+  - key: "0"
+    name: none
+
+# Optional. When true, several classes may be assigned per image and each key
+# toggles its class. Default false: one class per image, a key replaces it.
+multi_label: false
+
+# Optional. Where labels are written, relative to the dataset root unless
+# absolute. Default: classification_labels.json
+labels_file: classification_labels.json

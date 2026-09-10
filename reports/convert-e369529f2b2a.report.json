@@ -1,0 +1,24 @@
+{
+  "contention_events": [],
+  "dst_format": "yolo",
+  "git_commit": null,
+  "input_path": "/tmp/neovision2_test",
+  "output_path": "/home/jeremy/Documents/drone_data/image/neovision2-test-heli-yolo",
+  "provenance": [],
+  "run_id": "convert-e369529f2b2a",
+  "schema_version": "1.1",
+  "src_format": "custom",
+  "status": "completed",
+  "summary_counts": {
+    "annotations_in": 19142,
+    "annotations_out": 8441,
+    "dropped": 990,
+    "images": 1975,
+    "invalid": 0,
+    "skipped": 791,
+    "unmapped": 0
+  },
+  "timestamp": "2026-06-10T17:09:54.357226Z",
+  "tool_version": "0.1.0",
+  "warnings": []
+}

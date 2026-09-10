@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from functools import lru_cache
 from importlib.resources import as_file, files
 from pathlib import Path
@@ -15,7 +16,7 @@ class BuiltInParserSpec(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     kind: Literal["built_in"]
-    builtin_format: Literal["coco", "kitware", "matlab_ground_truth", "voc", "video_bbox", "yolo"]
+    builtin_format: Literal["cityscapes", "coco", "kitware", "matlab_ground_truth", "voc", "video_bbox", "yolo"]
 
 
 class JsonImageFieldSpec(BaseModel):
@@ -79,6 +80,25 @@ class JsonObjectDatasetParserSpec(BaseModel):
     score_boost: float = Field(default=0.0, ge=0.0, le=0.2)
 
 
+class Bdd100kImageLabelsParserSpec(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    kind: Literal["bdd100k_image_labels"]
+    annotations_file: str = Field(min_length=1)
+    records_key: str | None = None
+    image_root: str = ""
+    image_name_field: str = Field(default="name", min_length=1)
+    labels_field: str = Field(default="labels", min_length=1)
+    label_id_field: str | None = "id"
+    category_field: str = Field(default="category", min_length=1)
+    bbox_field: str = Field(default="box2d", min_length=1)
+    x1_field: str = Field(default="x1", min_length=1)
+    y1_field: str = Field(default="y1", min_length=1)
+    x2_field: str = Field(default="x2", min_length=1)
+    y2_field: str = Field(default="y2", min_length=1)
+    score_boost: float = Field(default=0.0, ge=0.0, le=0.2)
+
+
 class XmlBBoxFieldSpec(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -137,6 +157,26 @@ class TokenizedObjectFieldSpec(XYWHBBoxFieldSpec):
         return self
 
 
+class QuadrilateralBBoxFieldSpec(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    x1: int = Field(ge=1)
+    y1: int = Field(ge=1)
+    x2: int = Field(ge=1)
+    y2: int = Field(ge=1)
+    x3: int = Field(ge=1)
+    y3: int = Field(ge=1)
+    x4: int = Field(ge=1)
+    y4: int = Field(ge=1)
+
+    @model_validator(mode="after")
+    def _validate_unique_positions(self) -> "QuadrilateralBBoxFieldSpec":
+        positions = [self.x1, self.y1, self.x2, self.y2, self.x3, self.y3, self.x4, self.y4]
+        if len(set(positions)) != len(positions):
+            raise ValueError("quadrilateral field positions must be unique")
+        return self
+
+
 class CountPrefixedObjectsRowFormatSpec(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -165,13 +205,68 @@ class CountPrefixedObjectsRowFormatSpec(BaseModel):
         return self
 
 
+class SingleObjectVideoRowFormatSpec(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    kind: Literal["single_object"]
+    delimiter: Literal["whitespace", "comma"] = "whitespace"
+    frame_index_field: int = Field(ge=1)
+    frame_index_base: int = 0
+    class_name_field: int | None = Field(default=None, ge=1)
+    class_id_field: int | None = Field(default=None, ge=1)
+    skip_empty_class: bool = False
+    bbox_fields: XYWHBBoxFieldSpec | None = None
+    quadrilateral_fields: QuadrilateralBBoxFieldSpec | None = None
+
+    @model_validator(mode="after")
+    def _validate_fields(self) -> "SingleObjectVideoRowFormatSpec":
+        if self.class_name_field is None and self.class_id_field is None:
+            raise ValueError("single_object row format must define either class_name_field or class_id_field")
+        if self.bbox_fields is None and self.quadrilateral_fields is None:
+            raise ValueError("single_object row format must define bbox_fields or quadrilateral_fields")
+        if self.bbox_fields is not None and self.quadrilateral_fields is not None:
+            raise ValueError("single_object row format cannot define both bbox_fields and quadrilateral_fields")
+
+        positions = [self.frame_index_field]
+        if self.class_name_field is not None:
+            positions.append(self.class_name_field)
+        if self.class_id_field is not None:
+            positions.append(self.class_id_field)
+        if self.bbox_fields is not None:
+            positions.extend(
+                [
+                    self.bbox_fields.xmin,
+                    self.bbox_fields.ymin,
+                    self.bbox_fields.width,
+                    self.bbox_fields.height,
+                ]
+            )
+        if self.quadrilateral_fields is not None:
+            positions.extend(
+                [
+                    self.quadrilateral_fields.x1,
+                    self.quadrilateral_fields.y1,
+                    self.quadrilateral_fields.x2,
+                    self.quadrilateral_fields.y2,
+                    self.quadrilateral_fields.x3,
+                    self.quadrilateral_fields.y3,
+                    self.quadrilateral_fields.x4,
+                    self.quadrilateral_fields.y4,
+                ]
+            )
+        if len(set(positions)) != len(positions):
+            raise ValueError("single_object row field positions must be unique")
+        return self
+
+
 class TokenizedVideoParserSpec(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     kind: Literal["tokenized_video"]
     annotation_globs: list[str] = Field(min_length=1)
     video_roots: list[str] = Field(default_factory=list)
-    row_format: CountPrefixedObjectsRowFormatSpec
+    skip_rows: int = Field(default=0, ge=0)
+    row_format: CountPrefixedObjectsRowFormatSpec | SingleObjectVideoRowFormatSpec
     image_path_template: str = "images/{video_stem}/frame_{frame_index:06d}.jpg"
     score_boost: float = Field(default=0.0, ge=0.0, le=0.2)
 
@@ -211,6 +306,7 @@ class TokenizedImageLabelsParserSpec(BaseModel):
 
 ParserSpec: TypeAdapter[
     BuiltInParserSpec
+    | Bdd100kImageLabelsParserSpec
     | JsonObjectDatasetParserSpec
     | XmlAnnotationDatasetParserSpec
     | CsvBracketBBoxDatasetParserSpec
@@ -218,6 +314,7 @@ ParserSpec: TypeAdapter[
     | TokenizedImageLabelsParserSpec
 ] = TypeAdapter(
     BuiltInParserSpec
+    | Bdd100kImageLabelsParserSpec
     | JsonObjectDatasetParserSpec
     | XmlAnnotationDatasetParserSpec
     | CsvBracketBBoxDatasetParserSpec
@@ -234,12 +331,29 @@ class FormatSpec(BaseModel):
     description: str | None = None
     parser: (
         BuiltInParserSpec
+        | Bdd100kImageLabelsParserSpec
         | JsonObjectDatasetParserSpec
         | XmlAnnotationDatasetParserSpec
         | CsvBracketBBoxDatasetParserSpec
         | TokenizedVideoParserSpec
         | TokenizedImageLabelsParserSpec
     )
+
+
+@dataclass(frozen=True)
+class CustomFormatSpecEntry:
+    path: Path
+    spec: FormatSpec
+
+
+DATASET_ROOT_CUSTOM_SPEC_FILENAMES = (
+    "custom_format.yaml",
+    "custom_format.yml",
+    "data_format.yaml",
+    "data_format.yml",
+    "label_format.yaml",
+    "label_format.yml",
+)
 
 
 def _load_yaml_payload(path: Path) -> dict[str, object]:
@@ -294,6 +408,10 @@ def resolve_builtin_format_spec(format_id: str) -> FormatSpec | None:
     return load_builtin_format_specs().get(format_id)
 
 
+def load_custom_format_spec_from_path(path: Path) -> FormatSpec:
+    return _load_spec_from_path(path.expanduser().resolve())
+
+
 def _candidate_custom_spec_directories(dataset_root: Path | None) -> list[Path]:
     candidates = [Path.home() / ".label_master" / "formats"]
     if dataset_root is not None:
@@ -315,26 +433,86 @@ def _candidate_custom_spec_directories(dataset_root: Path | None) -> list[Path]:
     return unique
 
 
-def custom_format_specs(dataset_root: Path | None = None) -> list[FormatSpec]:
-    specs: list[FormatSpec] = []
+def _candidate_custom_spec_paths(
+    dataset_root: Path | None,
+    *,
+    extra_spec_paths: tuple[Path, ...] = (),
+) -> list[Path]:
+    candidates: list[Path] = []
+    seen: set[Path] = set()
+
+    def _append(path: Path) -> None:
+        resolved = path.expanduser().resolve()
+        if resolved in seen:
+            return
+        seen.add(resolved)
+        candidates.append(resolved)
+
     for directory in _candidate_custom_spec_directories(dataset_root):
         if not directory.is_dir():
             continue
         for path in sorted(directory.glob("*.y*ml")):
-            spec = _load_spec_from_path(path)
-            if not isinstance(spec.parser, TokenizedVideoParserSpec):
-                continue
-            if spec.format_id in load_builtin_format_specs():
-                raise ConfigurationError(
-                    f"Custom format spec cannot override built-in format id: {spec.format_id}",
-                    context={"path": str(path)},
-                )
-            specs.append(spec)
-    return specs
+            if path.is_file():
+                _append(path)
+
+    if dataset_root is not None:
+        resolved_root = dataset_root.expanduser().resolve()
+        for file_name in DATASET_ROOT_CUSTOM_SPEC_FILENAMES:
+            candidate = resolved_root / file_name
+            if candidate.is_file():
+                _append(candidate)
+
+    for path in extra_spec_paths:
+        _append(path)
+
+    return candidates
 
 
-def resolve_custom_format_spec(format_id: str, dataset_root: Path | None = None) -> FormatSpec | None:
-    for spec in custom_format_specs(dataset_root):
+def custom_format_spec_entries(
+    dataset_root: Path | None = None,
+    *,
+    extra_spec_paths: tuple[Path, ...] = (),
+) -> list[CustomFormatSpecEntry]:
+    entries: list[CustomFormatSpecEntry] = []
+    builtin_specs = load_builtin_format_specs()
+    seen_ids: dict[str, Path] = {}
+    for path in _candidate_custom_spec_paths(dataset_root, extra_spec_paths=extra_spec_paths):
+        spec = _load_spec_from_path(path)
+        if not isinstance(spec.parser, (Bdd100kImageLabelsParserSpec, TokenizedVideoParserSpec)):
+            continue
+        if spec.format_id in builtin_specs:
+            raise ConfigurationError(
+                f"Custom format spec cannot override built-in format id: {spec.format_id}",
+                context={"path": str(path)},
+            )
+        if spec.format_id in seen_ids:
+            raise ConfigurationError(
+                f"Duplicate custom format spec id discovered: {spec.format_id}",
+                context={
+                    "path": str(path),
+                    "existing_path": str(seen_ids[spec.format_id]),
+                },
+            )
+        seen_ids[spec.format_id] = path
+        entries.append(CustomFormatSpecEntry(path=path, spec=spec))
+    return entries
+
+
+def custom_format_specs(
+    dataset_root: Path | None = None,
+    *,
+    extra_spec_paths: tuple[Path, ...] = (),
+) -> list[FormatSpec]:
+    return [entry.spec for entry in custom_format_spec_entries(dataset_root, extra_spec_paths=extra_spec_paths)]
+
+
+def resolve_custom_format_spec(
+    format_id: str,
+    dataset_root: Path | None = None,
+    *,
+    extra_spec_paths: tuple[Path, ...] = (),
+) -> FormatSpec | None:
+    for spec in custom_format_specs(dataset_root, extra_spec_paths=extra_spec_paths):
         if spec.format_id == format_id:
             return spec
     return None

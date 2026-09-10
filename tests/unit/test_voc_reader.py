@@ -4,10 +4,8 @@ import json
 from pathlib import Path
 
 import label_master.adapters.voc.detector as voc_detector
-import pytest
 from label_master.adapters.voc.reader import read_voc_dataset
 from label_master.core.domain.entities import SourceFormat
-from label_master.core.domain.value_objects import ValidationError
 from label_master.core.services.infer_service import infer_format
 
 FIXTURE = Path("tests/fixtures/us6")
@@ -115,6 +113,41 @@ def test_read_voc_dataset_sample_uses_full_class_id_table(tmp_path: Path) -> Non
         "annotations/003.xml:1",
     ]
     assert [annotation.class_id for annotation in dataset.annotations] == [0, 2]
+
+
+def test_read_voc_dataset_resolves_extensionless_nested_sequence_images(tmp_path: Path) -> None:
+    dataset_root = tmp_path / "VID"
+    image_path = dataset_root / "images" / "train" / "bird_365" / "000000.JPEG"
+    image_path.parent.mkdir(parents=True, exist_ok=True)
+    image_path.write_bytes(b"placeholder")
+
+    xml_path = dataset_root / "labels" / "train" / "bird_365" / "000000.xml"
+    xml_path.parent.mkdir(parents=True, exist_ok=True)
+    xml_path.write_text(
+        """<annotation>
+    <folder>bird_365</folder>
+    <filename>000000</filename>
+    <size><width>1280</width><height>720</height></size>
+    <object>
+        <name>n01503061</name>
+        <bndbox>
+            <xmin>944</xmin>
+            <ymin>528</ymin>
+            <xmax>977</xmax>
+            <ymax>541</ymax>
+        </bndbox>
+    </object>
+</annotation>
+""",
+        encoding="utf-8",
+    )
+
+    dataset = read_voc_dataset(dataset_root)
+
+    assert dataset.source_metadata.details["xml_files_loaded"] == "1"
+    assert dataset.images[0].file_name == "images/train/bird_365/000000.JPEG"
+    assert dataset.annotations[0].class_id == 0
+    assert dataset.categories[0].name == "n01503061"
 
 
 def test_read_voc_dataset_reports_parse_reason(tmp_path: Path) -> None:

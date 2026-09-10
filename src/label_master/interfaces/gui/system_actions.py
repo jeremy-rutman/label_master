@@ -17,6 +17,13 @@ class DirectoryBrowseResult:
 
 
 @dataclass(frozen=True)
+class FileBrowseResult:
+    selected_path: Path | None
+    available: bool
+    message: str | None
+
+
+@dataclass(frozen=True)
 class OutputDirectoryOpenResult:
     requested_path: Path
     opened: bool
@@ -27,9 +34,18 @@ class DirectoryDialogUnavailableError(RuntimeError):
     """Raised when no usable directory dialog backend is available."""
 
 
+class FileDialogUnavailableError(RuntimeError):
+    """Raised when no usable file dialog backend is available."""
+
+
 def _normalized_dialog_title(dialog_title: str) -> str:
     normalized = dialog_title.strip()
     return normalized or "Select directory"
+
+
+def _normalized_file_dialog_title(dialog_title: str) -> str:
+    normalized = dialog_title.strip()
+    return normalized or "Select file"
 
 
 def _open_native_directory_dialog(
@@ -51,6 +67,50 @@ def _open_native_directory_dialog(
             initialdir=str(initial_directory) if initial_directory else None,
             mustexist=True,
             title=title,
+        )
+    finally:
+        root.destroy()
+
+    if not selected:
+        return None
+    return Path(selected).expanduser().resolve()
+
+
+def _open_native_file_dialog(
+    *,
+    initial_path: Path | None = None,
+    dialog_title: str = "Select file",
+    yaml_only: bool = True,
+) -> Path | None:
+    if threading.current_thread() is not threading.main_thread():
+        raise FileDialogUnavailableError("tkinter file picker is only safe from the main thread")
+
+    import tkinter
+    from tkinter import filedialog
+
+    title = _normalized_file_dialog_title(dialog_title)
+    initialdir = None
+    initialfile = None
+    if initial_path is not None:
+        resolved = initial_path.expanduser().resolve()
+        if resolved.exists() and resolved.is_file():
+            initialdir = str(resolved.parent)
+            initialfile = resolved.name
+        else:
+            initialdir = str(resolved if resolved.is_dir() else resolved.parent)
+
+    root = tkinter.Tk()
+    try:
+        root.withdraw()
+        selected = filedialog.askopenfilename(
+            initialdir=initialdir,
+            initialfile=initialfile,
+            title=title,
+            filetypes=(
+                (("YAML files", "*.yaml *.yml"), ("All files", "*"))
+                if yaml_only
+                else (("All files", "*"),)
+            ),
         )
     finally:
         root.destroy()
@@ -148,6 +208,94 @@ def _open_fallback_directory_dialog(
     raise DirectoryDialogUnavailableError("No supported directory picker backend found")
 
 
+def _open_fallback_file_dialog(
+    *,
+    initial_path: Path | None = None,
+    dialog_title: str = "Select file",
+    yaml_only: bool = True,
+) -> Path | None:
+    initial_arg = str(initial_path) if initial_path else str(Path.home())
+    title = _normalized_file_dialog_title(dialog_title)
+    errors: list[str] = []
+
+    if sys.platform.startswith("darwin") and shutil.which("osascript"):
+        escaped_title = title.replace("\\", "\\\\").replace('"', '\\"')
+        script = f'POSIX path of (choose file with prompt "{escaped_title}")'
+        try:
+            return _run_dialog_command(["osascript", "-e", script])
+        except Exception as exc:
+            errors.append(f"osascript: {exc}")
+
+    if sys.platform.startswith("win"):
+        powershell = shutil.which("powershell") or shutil.which("pwsh")
+        if powershell:
+            escaped_title = title.replace("'", "''")
+            filter_text = (
+                "YAML files (*.yaml;*.yml)|*.yaml;*.yml|All files (*.*)|*.*"
+                if yaml_only
+                else "All files (*.*)|*.*"
+            )
+            script = (
+                "Add-Type -AssemblyName System.Windows.Forms; "
+                "$dialog = New-Object System.Windows.Forms.OpenFileDialog; "
+                f"$dialog.Title = '{escaped_title}'; "
+                f"$dialog.Filter = '{filter_text}'; "
+                "if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) "
+                "{ Write-Output $dialog.FileName; exit 0 } "
+                "else { exit 1 }"
+            )
+            try:
+                return _run_dialog_command([powershell, "-NoProfile", "-Command", script])
+            except Exception as exc:
+                errors.append(f"powershell: {exc}")
+
+    if shutil.which("zenity"):
+        try:
+            command = [
+                "zenity",
+                "--file-selection",
+                f"--title={title}",
+                f"--filename={initial_arg}",
+            ]
+            if yaml_only:
+                command.extend(
+                    [
+                        "--file-filter=YAML files | *.yaml *.yml",
+                        "--file-filter=All files | *",
+                    ]
+                )
+            return _run_dialog_command(command)
+        except Exception as exc:
+            errors.append(f"zenity: {exc}")
+
+    if shutil.which("kdialog"):
+        try:
+            command = ["kdialog", "--title", title, "--getopenfilename", initial_arg]
+            if yaml_only:
+                command.append("*.yaml *.yml|YAML files")
+            return _run_dialog_command(command)
+        except Exception as exc:
+            errors.append(f"kdialog: {exc}")
+
+    if shutil.which("yad"):
+        try:
+            command = [
+                "yad",
+                "--file-selection",
+                f"--title={title}",
+                f"--filename={initial_arg}",
+            ]
+            if yaml_only:
+                command.append("--file-filter=YAML files (*.yaml *.yml) | *.yaml *.yml")
+            return _run_dialog_command(command)
+        except Exception as exc:
+            errors.append(f"yad: {exc}")
+
+    if errors:
+        raise FileDialogUnavailableError("; ".join(errors))
+    raise FileDialogUnavailableError("No supported file picker backend found")
+
+
 def browse_for_directory(
     *,
     initial_directory: Path | None = None,
@@ -182,6 +330,46 @@ def browse_for_directory(
         selected_path=selected,
         available=True,
         message="Selected directory.",
+    )
+
+
+def browse_for_file(
+    *,
+    initial_path: Path | None = None,
+    dialog_title: str = "Select file",
+    yaml_only: bool = True,
+) -> FileBrowseResult:
+    try:
+        selected = _open_native_file_dialog(
+            initial_path=initial_path,
+            dialog_title=dialog_title,
+            yaml_only=yaml_only,
+        )
+    except Exception as native_exc:
+        try:
+            selected = _open_fallback_file_dialog(
+                initial_path=initial_path,
+                dialog_title=dialog_title,
+                yaml_only=yaml_only,
+            )
+        except FileDialogUnavailableError as fallback_exc:  # pragma: no cover - exercised via monkeypatch
+            return FileBrowseResult(
+                selected_path=None,
+                available=False,
+                message=f"Browse unavailable ({native_exc}; {fallback_exc}). Enter a path manually.",
+            )
+
+    if selected is None:
+        return FileBrowseResult(
+            selected_path=None,
+            available=True,
+            message="File selection cancelled.",
+        )
+
+    return FileBrowseResult(
+        selected_path=selected,
+        available=True,
+        message="Selected file.",
     )
 
 

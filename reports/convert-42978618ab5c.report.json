@@ -1,0 +1,24 @@
+{
+  "contention_events": [],
+  "dst_format": "yolo",
+  "git_commit": null,
+  "input_path": "/tmp/neovision2_full",
+  "output_path": "/tmp/neovision2_yolo_final",
+  "provenance": [],
+  "run_id": "convert-42978618ab5c",
+  "schema_version": "1.1",
+  "src_format": "custom",
+  "status": "completed",
+  "summary_counts": {
+    "annotations_in": 9267,
+    "annotations_out": 8185,
+    "dropped": 1082,
+    "images": 2109,
+    "invalid": 0,
+    "skipped": 0,
+    "unmapped": 0
+  },
+  "timestamp": "2026-06-10T15:48:51.452153Z",
+  "tool_version": "0.1.0",
+  "warnings": []
+}

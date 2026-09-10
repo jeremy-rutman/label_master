@@ -299,23 +299,24 @@ def test_conversion_report_includes_bbox_clipping_warning(tmp_path) -> None:  # 
     assert result.validation.dataset.annotations[0].bbox_xywh_abs == (91.0, 40.0, 9.0, 10.0)
 
 
-def test_conversion_can_fail_when_out_of_frame_correction_is_disabled(
+def test_conversion_fails_when_out_of_frame_overflow_exceeds_tolerance(
     tmp_path,
 ) -> None:  # type: ignore[no-untyped-def]
-    input_root = tmp_path / "coco_clip_disabled"
+    input_root = tmp_path / "coco_clip_tolerance"
     output_root = tmp_path / "converted"
     _write_coco_dataset(input_root, bbox=(91.0, 40.0, 10.0, 10.0))
 
     with pytest.raises(ValidationError):
         execute_conversion(
             ConvertRequest(
-                run_id="coco-clip-disabled",
+                run_id="coco-clip-tolerance",
                 input_path=input_root,
                 output_path=output_root,
                 src_format=SourceFormat.COCO,
                 dst_format=SourceFormat.YOLO,
                 unmapped_policy=UnmappedPolicy.ERROR,
                 dry_run=True,
-                correct_out_of_frame_bboxes=False,
+                # 1px overflow exceeds a 0.5px tolerance, so strict validation must fail.
+                out_of_frame_tolerance_px=0.5,
             )
         )

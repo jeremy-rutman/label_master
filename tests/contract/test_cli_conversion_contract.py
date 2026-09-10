@@ -88,7 +88,7 @@ def test_cli_remap_contract() -> None:
     assert "remap_complete" in result.stdout
 
 
-def test_cli_infer_ambiguous_exit_code_3() -> None:
+def test_cli_infer_mixed_coco_beats_incomplete_yolo_candidate() -> None:
     with RUNNER.isolated_filesystem():
         mixed = Path("mixed")
         mixed.mkdir(parents=True)
@@ -100,4 +100,5 @@ def test_cli_infer_ambiguous_exit_code_3() -> None:
 
         result = RUNNER.invoke(app, ["infer", "--input", str(mixed)])
 
-    assert result.exit_code == 3
+    assert result.exit_code == 0
+    assert "predicted_format=coco" in result.stdout

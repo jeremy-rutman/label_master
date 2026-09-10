@@ -104,7 +104,7 @@ def create_tree(
     canopy_radii = [1.3, 1.0, 0.9, 0.85]
 
     canopy_parts: list[bpy.types.Object] = []
-    for index, (offset, radius) in enumerate(zip(canopy_offsets, canopy_radii)):
+    for index, (offset, radius) in enumerate(zip(canopy_offsets, canopy_radii, strict=True)):
         bpy.ops.mesh.primitive_ico_sphere_add(
             subdivisions=3,
             radius=radius,

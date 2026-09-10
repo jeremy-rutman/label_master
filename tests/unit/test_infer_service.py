@@ -18,6 +18,7 @@ def test_infer_format_passes_sample_limit_to_detectors(monkeypatch, tmp_path) ->
 
         return _detector
 
+    monkeypatch.setattr(infer_service, "detect_cityscapes", _record("cityscapes", 0.0))
     monkeypatch.setattr(infer_service, "detect_coco", _record("coco", 0.9))
     monkeypatch.setattr(infer_service, "detect_kitware", _record("kitware", 0.1))
     monkeypatch.setattr(infer_service, "detect_matlab_ground_truth", _record("matlab_ground_truth", 0.0))
@@ -33,6 +34,7 @@ def test_infer_format_passes_sample_limit_to_detectors(monkeypatch, tmp_path) ->
     )
 
     assert observed == [
+        ("cityscapes", 17),
         ("coco", 17),
         ("kitware", 17),
         ("matlab_ground_truth", 17),

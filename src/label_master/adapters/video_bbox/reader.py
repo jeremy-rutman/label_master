@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from bisect import bisect_left
 import json
 import shutil
 import subprocess
 import tempfile
+from bisect import bisect_left
 from collections import defaultdict
 from dataclasses import dataclass
 from functools import lru_cache
@@ -26,8 +26,8 @@ from label_master.adapters.video_bbox.common import (
     TRACKED_OBJECT_CLASS_NAME,
     FrameSequenceLayout,
     build_video_frame_image_rel,
-    discover_paired_video_json_sources,
     discover_frame_sequence_layout,
+    discover_paired_video_json_sources,
     discover_video_files,
     parse_mot_ground_truth_row,
     parse_tracking_bbox_row,
@@ -46,13 +46,17 @@ from label_master.core.domain.entities import (
     WarningEvent,
 )
 from label_master.core.domain.value_objects import ConversionError, ValidationError
-from label_master.infra.filesystem import InputPathFilter, relative_path_matches_input_filter
 from label_master.format_specs.registry import (
     FormatSpec,
     TokenizedVideoParserSpec,
     resolve_builtin_format_spec,
 )
-from label_master.infra.filesystem import ensure_directory, safe_resolve
+from label_master.infra.filesystem import (
+    InputPathFilter,
+    ensure_directory,
+    relative_path_matches_input_filter,
+    safe_resolve,
+)
 
 FrameMaterializationProgressCallback = Callable[[str, int, int], None]
 _T = TypeVar("_T")
@@ -1241,14 +1245,22 @@ def materialize_video_bbox_frames(
             sorted_frame_indices = sorted(frame_indices)
             requested_frame_total = len(sorted_frame_indices)
 
-            def _emit_video_extract_progress(extracted_frame_count: int) -> None:
+            def _emit_video_extract_progress(
+                extracted_frame_count: int,
+                *,
+                _sorted_frame_indices: list[int] = sorted_frame_indices,
+                _video_name: str = video_path.name,
+                _requested_frame_total: int = requested_frame_total,
+                _completed_requested_frames: int = completed_requested_frames,
+                _total_requested_frames: int = total_requested_frames,
+            ) -> None:
                 if progress_callback is None:
                     return
-                source_completed = bisect_left(sorted_frame_indices, extracted_frame_count)
+                source_completed = bisect_left(_sorted_frame_indices, extracted_frame_count)
                 progress_callback(
-                    f"{video_path.name} [{source_completed}/{requested_frame_total}]",
-                    completed_requested_frames + source_completed,
-                    total_requested_frames,
+                    f"{_video_name} [{source_completed}/{_requested_frame_total}]",
+                    _completed_requested_frames + source_completed,
+                    _total_requested_frames,
                 )
 
             if progress_callback is not None:

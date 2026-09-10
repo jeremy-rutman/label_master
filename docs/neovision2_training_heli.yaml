@@ -1,0 +1,25 @@
+format_id: neovision2_training_heli
+display_name: NeoVision2 Training Heli
+description: NeoVision2 helicopter video annotations stored as per-object CSV rows with quadrilateral corners
+parser:
+  kind: tokenized_video
+  annotation_globs:
+    - "*.csv"
+  video_roots:
+    - "."
+  skip_rows: 1
+  row_format:
+    kind: single_object
+    delimiter: comma
+    frame_index_field: 1
+    frame_index_base: 0
+    class_name_field: 10
+    quadrilateral_fields:
+      x1: 2
+      y1: 3
+      x2: 4
+      y2: 5
+      x3: 6
+      y3: 7
+      x4: 8
+      y4: 9

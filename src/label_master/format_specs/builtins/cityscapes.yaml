@@ -1,0 +1,6 @@
+format_id: cityscapes
+display_name: Cityscapes
+description: Cityscapes polygon annotations paired with leftImg8bit images and normalized to bounding boxes
+parser:
+  kind: built_in
+  builtin_format: cityscapes

@@ -1,0 +1,769 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>bbox editor</title>
+    <style>
+      :root {
+        color-scheme: light;
+        font-family: "Segoe UI", Arial, sans-serif;
+      }
+
+      body {
+        margin: 0;
+        padding: 0.5rem;
+        background: transparent;
+        color: #10212b;
+      }
+
+      .toolbar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        align-items: center;
+        margin-bottom: 0.5rem;
+      }
+
+      .toolbar button,
+      .toolbar select,
+      .toolbar label {
+        font: inherit;
+      }
+
+      .toolbar button {
+        border: 1px solid #9fb1ba;
+        background: #f7fbfd;
+        border-radius: 0.45rem;
+        padding: 0.35rem 0.7rem;
+        cursor: pointer;
+      }
+
+      .toolbar button.active {
+        background: #10212b;
+        color: #ffffff;
+        border-color: #10212b;
+      }
+
+      .toolbar button:disabled,
+      .toolbar select:disabled {
+        opacity: 0.55;
+        cursor: not-allowed;
+      }
+
+      .toolbar .toggle {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.25rem;
+        padding: 0.1rem 0.2rem;
+      }
+
+      .toolbar .hint {
+        color: #4a6270;
+        font-size: 0.86rem;
+      }
+
+      .canvas-shell {
+        border: 1px solid #b9c9d1;
+        border-radius: 0.6rem;
+        overflow: hidden;
+        background: #dfe8ec;
+        display: inline-block;
+        max-width: 100%;
+      }
+
+      canvas {
+        display: block;
+        max-width: 100%;
+        cursor: crosshair;
+      }
+
+      .status {
+        margin-top: 0.5rem;
+        color: #4a6270;
+        font-size: 0.9rem;
+      }
+
+      .legend {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.75rem;
+        margin-top: 0.5rem;
+        color: #30434f;
+        font-size: 0.85rem;
+      }
+
+      .legend-item {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+      }
+
+      .legend-swatch {
+        width: 0.85rem;
+        height: 0.85rem;
+        border-radius: 0.2rem;
+        border: 1px solid rgba(0, 0, 0, 0.35);
+      }
+
+      .empty {
+        padding: 1rem;
+        color: #4a6270;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="toolbar">
+      <button id="selectModeButton" type="button">Select</button>
+      <button id="drawModeButton" type="button">Draw</button>
+      <button id="deleteButton" type="button">Delete selected</button>
+      <button id="resetButton" type="button">Reset</button>
+      <label>
+        Class
+        <select id="classSelect"></select>
+      </label>
+      <label class="toggle"><input id="showAnnotationsToggle" type="checkbox" checked />Annotations</label>
+      <label class="toggle"><input id="showDetectorsToggle" type="checkbox" checked />Detector</label>
+      <span class="hint">Shortcuts: <strong>V</strong> select, <strong>N</strong> draw, <strong>Delete</strong> remove, <strong>Esc</strong> cancel.</span>
+    </div>
+
+    <div class="canvas-shell">
+      <canvas id="editorCanvas"></canvas>
+      <div id="emptyState" class="empty" hidden>No image available for editing.</div>
+    </div>
+    <div id="status" class="status"></div>
+    <div class="legend">
+      <span class="legend-item"><span class="legend-swatch" style="background:#2563eb"></span>Current annotation</span>
+      <span class="legend-item"><span class="legend-swatch" style="background:#f59e0b"></span>Detector reference</span>
+      <span class="legend-item"><span class="legend-swatch" style="background:#16a34a"></span>Editable final box</span>
+    </div>
+
+    <script>
+      const STREAMLIT_MESSAGES = {
+        COMPONENT_READY: "streamlit:componentReady",
+        RENDER: "streamlit:render",
+        SET_COMPONENT_VALUE: "streamlit:setComponentValue",
+        SET_FRAME_HEIGHT: "streamlit:setFrameHeight",
+      };
+
+      const COLORS = {
+        annotation: "#2563eb",
+        detector: "#f59e0b",
+        editable: "#16a34a",
+        selected: "#dc2626",
+        handleFill: "#ffffff",
+      };
+
+      const state = {
+        mode: "select",
+        image: null,
+        imageDataUrl: "",
+        displayWidth: 0,
+        displayHeight: 0,
+        originalWidth: 1,
+        originalHeight: 1,
+        annotationBoxes: [],
+        detectorBoxes: [],
+        editableBoxes: [],
+        initialEditableBoxes: [],
+        classOptions: [],
+        selectedBoxId: null,
+        defaultClassId: null,
+        drag: null,
+        nonce: 0,
+        showAnnotations: true,
+        showDetectors: true,
+      };
+
+      const canvas = document.getElementById("editorCanvas");
+      const context = canvas.getContext("2d");
+      const selectModeButton = document.getElementById("selectModeButton");
+      const drawModeButton = document.getElementById("drawModeButton");
+      const deleteButton = document.getElementById("deleteButton");
+      const resetButton = document.getElementById("resetButton");
+      const classSelect = document.getElementById("classSelect");
+      const showAnnotationsToggle = document.getElementById("showAnnotationsToggle");
+      const showDetectorsToggle = document.getElementById("showDetectorsToggle");
+      const status = document.getElementById("status");
+      const emptyState = document.getElementById("emptyState");
+
+      function sendMessage(type, payload = {}) {
+        window.parent.postMessage(
+          {
+            isStreamlitMessage: true,
+            type,
+            ...payload,
+          },
+          "*",
+        );
+      }
+
+      function setComponentReady() {
+        sendMessage(STREAMLIT_MESSAGES.COMPONENT_READY, { apiVersion: 1 });
+      }
+
+      function setFrameHeight(height) {
+        sendMessage(STREAMLIT_MESSAGES.SET_FRAME_HEIGHT, { height });
+      }
+
+      function setComponentValue(value) {
+        sendMessage(STREAMLIT_MESSAGES.SET_COMPONENT_VALUE, { value });
+      }
+
+      function deepClone(value) {
+        return JSON.parse(JSON.stringify(value));
+      }
+
+      function clamp(value, min, max) {
+        return Math.min(max, Math.max(min, value));
+      }
+
+      function ensureBoxId(box, index) {
+        if (box.box_id) {
+          return String(box.box_id);
+        }
+        return `box:${index}`;
+      }
+
+      function normalizeClassOptions(options) {
+        const normalized = Array.isArray(options)
+          ? options
+              .map((option, index) => {
+                const classId = Number(option.class_id);
+                if (!Number.isFinite(classId)) {
+                  return null;
+                }
+                return {
+                  class_id: classId,
+                  class_name: String(option.class_name || `class_${classId}`),
+                  option_id: `${classId}:${index}`,
+                };
+              })
+              .filter(Boolean)
+          : [];
+        if (normalized.length > 0) {
+          return normalized;
+        }
+        return [{ class_id: 0, class_name: "class_0", option_id: "0:0" }];
+      }
+
+      function normalizeBox(box, index, fallbackClass) {
+        const width = clamp(Number(box.w ?? box.width ?? 0), 0, 1);
+        const height = clamp(Number(box.h ?? box.height ?? 0), 0, 1);
+        const centerX = clamp(Number(box.cx ?? box.center_x ?? 0.5), 0, 1);
+        const centerY = clamp(Number(box.cy ?? box.center_y ?? 0.5), 0, 1);
+        const classId = Number.isFinite(Number(box.class_id)) ? Number(box.class_id) : fallbackClass.class_id;
+        const classOption = state.classOptions.find((option) => option.class_id === classId) || fallbackClass;
+        return {
+          box_id: ensureBoxId(box, index),
+          class_id: classOption.class_id,
+          class_name: String(box.class_name || classOption.class_name),
+          cx: clamp(centerX, 0, 1),
+          cy: clamp(centerY, 0, 1),
+          w: width,
+          h: height,
+          source: String(box.source || "editable"),
+        };
+      }
+
+      function normalizedToDisplay(box) {
+        const boxWidth = box.w * state.displayWidth;
+        const boxHeight = box.h * state.displayHeight;
+        return {
+          left: (box.cx * state.displayWidth) - boxWidth / 2,
+          top: (box.cy * state.displayHeight) - boxHeight / 2,
+          width: boxWidth,
+          height: boxHeight,
+          right: (box.cx * state.displayWidth) + boxWidth / 2,
+          bottom: (box.cy * state.displayHeight) + boxHeight / 2,
+        };
+      }
+
+      function displayRectToNormalized(rect) {
+        const left = clamp(Math.min(rect.left, rect.right), 0, state.displayWidth);
+        const right = clamp(Math.max(rect.left, rect.right), 0, state.displayWidth);
+        const top = clamp(Math.min(rect.top, rect.bottom), 0, state.displayHeight);
+        const bottom = clamp(Math.max(rect.top, rect.bottom), 0, state.displayHeight);
+        const width = right - left;
+        const height = bottom - top;
+        if (width < 2 || height < 2) {
+          return null;
+        }
+        return {
+          cx: ((left + right) / 2) / state.displayWidth,
+          cy: ((top + bottom) / 2) / state.displayHeight,
+          w: width / state.displayWidth,
+          h: height / state.displayHeight,
+        };
+      }
+
+      function updateModeButtons() {
+        selectModeButton.classList.toggle("active", state.mode === "select");
+        drawModeButton.classList.toggle("active", state.mode === "draw");
+        canvas.style.cursor = state.mode === "draw" ? "crosshair" : "default";
+      }
+
+      function populateClassSelect() {
+        const currentValue = state.selectedBoxId
+          ? String((state.editableBoxes.find((box) => box.box_id === state.selectedBoxId) || {}).class_id ?? state.defaultClassId)
+          : String(state.defaultClassId ?? state.classOptions[0].class_id);
+
+        classSelect.innerHTML = "";
+        state.classOptions.forEach((option) => {
+          const element = document.createElement("option");
+          element.value = String(option.class_id);
+          element.textContent = `${option.class_id}: ${option.class_name}`;
+          classSelect.appendChild(element);
+        });
+        classSelect.value = currentValue;
+      }
+
+      function updateStatus() {
+        const selectedBox = state.editableBoxes.find((box) => box.box_id === state.selectedBoxId);
+        if (selectedBox) {
+          status.textContent = `Selected ${selectedBox.class_id}:${selectedBox.class_name} (${selectedBox.w.toFixed(3)} x ${selectedBox.h.toFixed(3)} normalized)`;
+          return;
+        }
+        status.textContent = `${state.editableBoxes.length} editable box(es).`;
+      }
+
+      function handleRects(box) {
+        const rect = normalizedToDisplay(box);
+        const size = 6;
+        return {
+          nw: { x: rect.left, y: rect.top, cursor: "nwse-resize", rect },
+          ne: { x: rect.right, y: rect.top, cursor: "nesw-resize", rect },
+          sw: { x: rect.left, y: rect.bottom, cursor: "nesw-resize", rect },
+          se: { x: rect.right, y: rect.bottom, cursor: "nwse-resize", rect },
+          size,
+        };
+      }
+
+      function drawHandle(x, y, size) {
+        context.fillStyle = COLORS.handleFill;
+        context.strokeStyle = COLORS.selected;
+        context.lineWidth = 1;
+        context.fillRect(x - size / 2, y - size / 2, size, size);
+        context.strokeRect(x - size / 2, y - size / 2, size, size);
+      }
+
+      function drawBox(box, color, options = {}) {
+        const rect = normalizedToDisplay(box);
+        if (options.dashed) {
+          context.setLineDash([8, 6]);
+        } else {
+          context.setLineDash([]);
+        }
+        context.strokeStyle = color;
+        context.lineWidth = options.lineWidth || 2;
+        context.strokeRect(rect.left, rect.top, rect.width, rect.height);
+
+        const label = `${box.class_id}:${box.class_name}`;
+        context.setLineDash([]);
+        context.font = "14px Segoe UI, Arial, sans-serif";
+        const metrics = context.measureText(label);
+        const labelWidth = Math.max(48, metrics.width + 12);
+        const labelHeight = 20;
+        const labelLeft = Math.max(0, rect.left);
+        const labelTop = Math.max(0, rect.top - labelHeight);
+        context.fillStyle = color;
+        context.fillRect(labelLeft, labelTop, labelWidth, labelHeight);
+        context.fillStyle = "#ffffff";
+        context.fillText(label, labelLeft + 6, labelTop + 14);
+
+        if (options.selected) {
+          const handles = handleRects(box);
+          Object.values(handles)
+            .filter((value) => value && value.x !== undefined)
+            .forEach((handle) => drawHandle(handle.x, handle.y, handles.size));
+        }
+      }
+
+      function renderCanvas() {
+        updateModeButtons();
+        populateClassSelect();
+        updateStatus();
+
+        if (!state.image || !state.displayWidth || !state.displayHeight) {
+          canvas.width = 1;
+          canvas.height = 1;
+          canvas.hidden = true;
+          emptyState.hidden = false;
+          setFrameHeight(document.documentElement.scrollHeight);
+          return;
+        }
+
+        canvas.hidden = false;
+        emptyState.hidden = true;
+        canvas.width = state.displayWidth;
+        canvas.height = state.displayHeight;
+        canvas.style.width = `${state.displayWidth}px`;
+        canvas.style.height = `${state.displayHeight}px`;
+        context.clearRect(0, 0, canvas.width, canvas.height);
+        context.drawImage(state.image, 0, 0, state.displayWidth, state.displayHeight);
+
+        if (state.showAnnotations) {
+          state.annotationBoxes.forEach((box) => drawBox(box, COLORS.annotation, { dashed: true, lineWidth: 2 }));
+        }
+        if (state.showDetectors) {
+          state.detectorBoxes.forEach((box) => drawBox(box, COLORS.detector, { dashed: true, lineWidth: 2 }));
+        }
+        state.editableBoxes.forEach((box) => {
+          drawBox(box, box.box_id === state.selectedBoxId ? COLORS.selected : COLORS.editable, {
+            selected: box.box_id === state.selectedBoxId,
+            lineWidth: box.box_id === state.selectedBoxId ? 3 : 2,
+          });
+        });
+
+        if (state.drag && state.drag.type === "draw" && state.drag.draft) {
+          const draftNormalized = displayRectToNormalized(state.drag.draft);
+          if (draftNormalized) {
+            drawBox(
+              {
+                box_id: "draft",
+                class_id: state.defaultClassId ?? state.classOptions[0].class_id,
+                class_name: (state.classOptions.find((option) => option.class_id === (state.defaultClassId ?? state.classOptions[0].class_id)) || state.classOptions[0]).class_name,
+                ...draftNormalized,
+              },
+              COLORS.editable,
+              { dashed: true, lineWidth: 2 },
+            );
+          }
+        }
+
+        setFrameHeight(document.documentElement.scrollHeight);
+      }
+
+      function emitBoxes() {
+        state.nonce += 1;
+        setComponentValue({
+          nonce: state.nonce,
+          boxes: state.editableBoxes.map((box) => ({
+            box_id: box.box_id,
+            class_id: box.class_id,
+            class_name: box.class_name,
+            cx: box.cx,
+            cy: box.cy,
+            w: box.w,
+            h: box.h,
+            source: box.source,
+          })),
+        });
+      }
+
+      function selectBox(boxId) {
+        state.selectedBoxId = boxId;
+        renderCanvas();
+      }
+
+      function findBoxAt(point) {
+        for (let index = state.editableBoxes.length - 1; index >= 0; index -= 1) {
+          const box = state.editableBoxes[index];
+          const rect = normalizedToDisplay(box);
+          if (point.x >= rect.left && point.x <= rect.right && point.y >= rect.top && point.y <= rect.bottom) {
+            return box;
+          }
+        }
+        return null;
+      }
+
+      function findHandleAt(point, box) {
+        const handles = handleRects(box);
+        return Object.entries(handles)
+          .filter(([name]) => name !== "size")
+          .find(([, handle]) => Math.abs(point.x - handle.x) <= handles.size && Math.abs(point.y - handle.y) <= handles.size);
+      }
+
+      function getPoint(event) {
+        const rect = canvas.getBoundingClientRect();
+        return {
+          x: clamp(event.clientX - rect.left, 0, state.displayWidth),
+          y: clamp(event.clientY - rect.top, 0, state.displayHeight),
+        };
+      }
+
+      function setSelectedClass(classId) {
+        const parsedClassId = Number(classId);
+        const classOption = state.classOptions.find((option) => option.class_id === parsedClassId) || state.classOptions[0];
+        state.defaultClassId = classOption.class_id;
+        if (state.selectedBoxId) {
+          state.editableBoxes = state.editableBoxes.map((box) =>
+            box.box_id === state.selectedBoxId
+              ? { ...box, class_id: classOption.class_id, class_name: classOption.class_name }
+              : box,
+          );
+          emitBoxes();
+        }
+        renderCanvas();
+      }
+
+      function deleteSelectedBox() {
+        if (!state.selectedBoxId) {
+          return;
+        }
+        state.editableBoxes = state.editableBoxes.filter((box) => box.box_id !== state.selectedBoxId);
+        state.selectedBoxId = null;
+        emitBoxes();
+        renderCanvas();
+      }
+
+      function resetBoxes() {
+        state.editableBoxes = deepClone(state.initialEditableBoxes);
+        state.selectedBoxId = null;
+        emitBoxes();
+        renderCanvas();
+      }
+
+      function nextManualBoxId() {
+        let candidate = state.editableBoxes.length + 1;
+        while (state.editableBoxes.some((box) => box.box_id === `manual:${candidate}`)) {
+          candidate += 1;
+        }
+        return `manual:${candidate}`;
+      }
+
+      function handlePointerDown(event) {
+        if (!state.image) {
+          return;
+        }
+        canvas.focus();
+        const point = getPoint(event);
+        if (state.mode === "draw") {
+          state.drag = {
+            type: "draw",
+            draft: { left: point.x, top: point.y, right: point.x, bottom: point.y },
+          };
+          renderCanvas();
+          return;
+        }
+
+        const selectedBox = state.editableBoxes.find((box) => box.box_id === state.selectedBoxId);
+        if (selectedBox) {
+          const hitHandle = findHandleAt(point, selectedBox);
+          if (hitHandle) {
+            state.drag = {
+              type: "resize",
+              boxId: selectedBox.box_id,
+              handle: hitHandle[0],
+            };
+            return;
+          }
+        }
+
+        const hitBox = findBoxAt(point);
+        if (hitBox) {
+          state.selectedBoxId = hitBox.box_id;
+          const rect = normalizedToDisplay(hitBox);
+          state.drag = {
+            type: "move",
+            boxId: hitBox.box_id,
+            offsetX: point.x - rect.left,
+            offsetY: point.y - rect.top,
+          };
+          renderCanvas();
+          return;
+        }
+
+        state.selectedBoxId = null;
+        renderCanvas();
+      }
+
+      function updateBox(boxId, updater) {
+        state.editableBoxes = state.editableBoxes.map((box) => (box.box_id === boxId ? updater(box) : box));
+      }
+
+      function handlePointerMove(event) {
+        if (!state.drag) {
+          return;
+        }
+        const point = getPoint(event);
+
+        if (state.drag.type === "draw") {
+          state.drag.draft = {
+            ...state.drag.draft,
+            right: point.x,
+            bottom: point.y,
+          };
+          renderCanvas();
+          return;
+        }
+
+        if (state.drag.type === "move") {
+          updateBox(state.drag.boxId, (box) => {
+            const rect = normalizedToDisplay(box);
+            const width = rect.width;
+            const height = rect.height;
+            const left = clamp(point.x - state.drag.offsetX, 0, state.displayWidth - width);
+            const top = clamp(point.y - state.drag.offsetY, 0, state.displayHeight - height);
+            return {
+              ...box,
+              ...displayRectToNormalized({
+                left,
+                top,
+                right: left + width,
+                bottom: top + height,
+              }),
+            };
+          });
+          renderCanvas();
+          return;
+        }
+
+        if (state.drag.type === "resize") {
+          updateBox(state.drag.boxId, (box) => {
+            const rect = normalizedToDisplay(box);
+            const updated = { ...rect };
+            if (state.drag.handle.includes("n")) {
+              updated.top = point.y;
+            }
+            if (state.drag.handle.includes("s")) {
+              updated.bottom = point.y;
+            }
+            if (state.drag.handle.includes("w")) {
+              updated.left = point.x;
+            }
+            if (state.drag.handle.includes("e")) {
+              updated.right = point.x;
+            }
+            const normalized = displayRectToNormalized(updated);
+            if (!normalized) {
+              return box;
+            }
+            return { ...box, ...normalized };
+          });
+          renderCanvas();
+        }
+      }
+
+      function handlePointerUp() {
+        if (!state.drag) {
+          return;
+        }
+
+        if (state.drag.type === "draw") {
+          const normalized = displayRectToNormalized(state.drag.draft);
+          if (normalized) {
+            const selectedOption = state.classOptions.find((option) => option.class_id === state.defaultClassId) || state.classOptions[0];
+            const newBox = {
+              box_id: nextManualBoxId(),
+              class_id: selectedOption.class_id,
+              class_name: selectedOption.class_name,
+              source: "manual",
+              ...normalized,
+            };
+            state.editableBoxes = [...state.editableBoxes, newBox];
+            state.selectedBoxId = newBox.box_id;
+            emitBoxes();
+          }
+        } else if (state.drag.type === "move" || state.drag.type === "resize") {
+          emitBoxes();
+        }
+
+        state.drag = null;
+        renderCanvas();
+      }
+
+      function handleKeydown(event) {
+        if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey || event.repeat) {
+          return;
+        }
+
+        if (event.key === "Delete" || event.key === "Backspace") {
+          event.preventDefault();
+          deleteSelectedBox();
+          return;
+        }
+        if (event.key.toLowerCase() === "n") {
+          event.preventDefault();
+          state.mode = "draw";
+          renderCanvas();
+          return;
+        }
+        if (event.key.toLowerCase() === "v") {
+          event.preventDefault();
+          state.mode = "select";
+          renderCanvas();
+          return;
+        }
+        if (event.key === "Escape") {
+          event.preventDefault();
+          state.drag = null;
+          state.mode = "select";
+          renderCanvas();
+        }
+      }
+
+      function loadImage(dataUrl) {
+        return new Promise((resolve, reject) => {
+          if (!dataUrl) {
+            resolve(null);
+            return;
+          }
+          const image = new Image();
+          image.onload = () => resolve(image);
+          image.onerror = reject;
+          image.src = dataUrl;
+        });
+      }
+
+      async function handleRender(args) {
+        state.classOptions = normalizeClassOptions(args.class_options || []);
+        state.defaultClassId = state.classOptions[0].class_id;
+        state.showAnnotations = Boolean(args.show_annotations ?? true);
+        state.showDetectors = Boolean(args.show_detectors ?? true);
+        showAnnotationsToggle.checked = state.showAnnotations;
+        showDetectorsToggle.checked = state.showDetectors;
+        state.originalWidth = Math.max(1, Number(args.original_width || 1));
+        state.originalHeight = Math.max(1, Number(args.original_height || 1));
+        state.displayWidth = Math.max(1, Number(args.display_width || 1));
+        state.displayHeight = Math.max(1, Number(args.display_height || 1));
+        state.annotationBoxes = (args.annotation_boxes || []).map((box, index) => normalizeBox(box, index, state.classOptions[0]));
+        state.detectorBoxes = (args.detector_boxes || []).map((box, index) => normalizeBox(box, index, state.classOptions[0]));
+        state.initialEditableBoxes = (args.editable_boxes || []).map((box, index) => normalizeBox(box, index, state.classOptions[0]));
+        state.editableBoxes = deepClone(state.initialEditableBoxes);
+        state.selectedBoxId = null;
+
+        const imageDataUrl = String(args.image_data_url || "");
+        if (imageDataUrl !== state.imageDataUrl) {
+          state.imageDataUrl = imageDataUrl;
+          state.image = await loadImage(imageDataUrl);
+        }
+
+        renderCanvas();
+      }
+
+      selectModeButton.addEventListener("click", () => {
+        state.mode = "select";
+        renderCanvas();
+      });
+      drawModeButton.addEventListener("click", () => {
+        state.mode = "draw";
+        renderCanvas();
+      });
+      deleteButton.addEventListener("click", deleteSelectedBox);
+      resetButton.addEventListener("click", resetBoxes);
+      classSelect.addEventListener("change", (event) => setSelectedClass(event.target.value));
+      showAnnotationsToggle.addEventListener("change", (event) => {
+        state.showAnnotations = event.target.checked;
+        renderCanvas();
+      });
+      showDetectorsToggle.addEventListener("change", (event) => {
+        state.showDetectors = event.target.checked;
+        renderCanvas();
+      });
+      canvas.addEventListener("mousedown", handlePointerDown);
+      canvas.addEventListener("mousemove", handlePointerMove);
+      window.addEventListener("mouseup", handlePointerUp);
+      window.addEventListener("keydown", handleKeydown, true);
+
+      window.addEventListener("message", async (event) => {
+        if (!event.data || event.data.type !== STREAMLIT_MESSAGES.RENDER) {
+          return;
+        }
+        await handleRender(event.data.args || {});
+      });
+
+      setComponentReady();
+      setFrameHeight(document.documentElement.scrollHeight);
+    </script>
+  </body>
+</html>

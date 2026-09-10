@@ -13,6 +13,7 @@ from label_master.format_specs.registry import (
 
 _IMAGE_EXTENSIONS = (".jpg", ".jpeg", ".png", ".bmp", ".webp")
 _IMAGE_DIR_HINTS = ("img", "image", "images", "jpeg", "jpegimages", "jpg")
+_ANNOTATION_DIR_HINTS = {"annotation", "annotations", "label", "labels", "xml"}
 
 
 @dataclass(frozen=True)
@@ -36,6 +37,8 @@ class VOCAnnotationFile:
 @dataclass(frozen=True)
 class VOCImageIndex:
     by_name: dict[str, list[Path]]
+    by_stem: dict[str, list[Path]]
+    by_rel_stem: dict[str, Path]
     by_rel_path: dict[str, Path]
 
 
@@ -64,16 +67,21 @@ def discover_voc_xml_files(dataset_root: Path, *, sample_limit: int | None = Non
 
 def build_voc_image_index(dataset_root: Path) -> VOCImageIndex:
     by_name: dict[str, list[Path]] = {}
+    by_stem: dict[str, list[Path]] = {}
+    by_rel_stem: dict[str, Path] = {}
     by_rel_path: dict[str, Path] = {}
 
     for file_path in sorted(file for file in dataset_root.rglob("*") if file.is_file()):
         if file_path.suffix.lower() not in _IMAGE_EXTENSIONS:
             continue
         rel_path = file_path.relative_to(dataset_root).as_posix()
+        rel_stem = file_path.relative_to(dataset_root).with_suffix("").as_posix()
         by_rel_path[rel_path] = file_path
+        by_rel_stem[rel_stem] = file_path
         by_name.setdefault(file_path.name, []).append(file_path)
+        by_stem.setdefault(file_path.stem, []).append(file_path)
 
-    return VOCImageIndex(by_name=by_name, by_rel_path=by_rel_path)
+    return VOCImageIndex(by_name=by_name, by_stem=by_stem, by_rel_stem=by_rel_stem, by_rel_path=by_rel_path)
 
 
 def parse_voc_annotation_file(
@@ -177,13 +185,28 @@ def resolve_voc_image_path(
         indexed = image_index.by_rel_path.get(annotation.path_hint)
         if indexed is not None:
             return indexed
+        if not Path(annotation.path_hint).suffix:
+            indexed = image_index.by_rel_stem.get(annotation.path_hint)
+            if indexed is not None:
+                return indexed
 
     normalized_filename = annotation.filename.replace("\\", "/").lstrip("./")
     indexed = image_index.by_rel_path.get(normalized_filename)
     if indexed is not None:
         return indexed
+    if normalized_filename and not Path(normalized_filename).suffix:
+        indexed = image_index.by_rel_stem.get(normalized_filename)
+        if indexed is not None:
+            return indexed
+
+    for candidate_rel_stem in _candidate_relative_image_stems(dataset_root, xml_path):
+        indexed = image_index.by_rel_stem.get(candidate_rel_stem)
+        if indexed is not None:
+            return indexed
 
     indexed_candidates = image_index.by_name.get(image_name, [])
+    if not indexed_candidates and not Path(image_name).suffix:
+        indexed_candidates = image_index.by_stem.get(Path(image_name).name, [])
     if not indexed_candidates:
         return None
     if len(indexed_candidates) == 1:
@@ -282,8 +305,14 @@ def _existing_path_within_root(dataset_root: Path, candidate: Path) -> Path | No
 
 
 def _candidate_rank(dataset_root: Path, xml_path: Path, candidate: Path) -> tuple[int, int, int, str]:
-    xml_parts = xml_path.relative_to(dataset_root).parts[:-1]
-    candidate_parts = candidate.relative_to(dataset_root).parts[:-1]
+    xml_parts = _normalize_match_parts(
+        xml_path.relative_to(dataset_root).parts[:-1],
+        ignored_parts=_ANNOTATION_DIR_HINTS,
+    )
+    candidate_parts = _normalize_match_parts(
+        candidate.relative_to(dataset_root).parts[:-1],
+        ignored_parts=set(_IMAGE_DIR_HINTS),
+    )
     shared_prefix = 0
     for xml_part, candidate_part in zip(xml_parts, candidate_parts, strict=False):
         if xml_part != candidate_part:
@@ -296,3 +325,28 @@ def _candidate_rank(dataset_root: Path, xml_path: Path, candidate: Path) -> tupl
         len(candidate_parts),
         candidate.as_posix(),
     )
+
+
+def _normalize_match_parts(parts: tuple[str, ...], *, ignored_parts: set[str]) -> tuple[str, ...]:
+    return tuple(part for part in parts if part.lower() not in ignored_parts)
+
+
+def _candidate_relative_image_stems(dataset_root: Path, xml_path: Path) -> tuple[str, ...]:
+    xml_rel_stem = xml_path.relative_to(dataset_root).with_suffix("")
+    xml_parts = list(xml_rel_stem.parts)
+    candidates: list[str] = []
+    seen: set[str] = set()
+
+    for index, part in enumerate(xml_parts[:-1]):
+        if part.lower() not in _ANNOTATION_DIR_HINTS:
+            continue
+        for image_dir_hint in _IMAGE_DIR_HINTS:
+            candidate_parts = list(xml_parts)
+            candidate_parts[index] = image_dir_hint
+            candidate = Path(*candidate_parts).as_posix()
+            if candidate in seen:
+                continue
+            seen.add(candidate)
+            candidates.append(candidate)
+
+    return tuple(candidates)

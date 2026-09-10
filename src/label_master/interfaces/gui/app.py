@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import json
 import math
 import os
@@ -14,23 +15,40 @@ from uuid import uuid4
 import streamlit as st
 import streamlit.components.v1 as components
 import yaml
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageFont
 
 from label_master.adapters.custom.detector import detect_custom_format
 from label_master.adapters.video_bbox.reader import load_video_bbox_preview_image
 from label_master.core.domain.policies import (
-    DEFAULT_CORRECT_OUT_OF_FRAME_BBOXES,
     DEFAULT_MAX_IMAGE_LONGEST_EDGE_PX,
     DEFAULT_MIN_IMAGE_LONGEST_EDGE_PX,
+    DEFAULT_OUT_OF_FRAME_BBOX_POLICY,
     DEFAULT_OUT_OF_FRAME_TOLERANCE_PX,
     InvalidAnnotationAction,
+    OutOfFrameBBoxPolicy,
     ValidationMode,
+)
+from label_master.core.services.classification_service import (
+    ClassificationConfig,
+    apply_classification_label,
+    clear_classification_label,
+    discover_classification_image_paths,
+    find_default_classification_config_path,
+    image_labels,
+    load_classification_config,
+    load_classification_labels,
+    next_unlabeled_index,
+    resolve_classification_labels_path,
+    save_classification_labels,
+    summarize_classification_labels,
 )
 from label_master.core.services.convert_service import (
     derive_output_filename_prefix,
     sanitize_output_file_stem_affix,
 )
 from label_master.format_specs.registry import (
+    custom_format_spec_entries,
+    load_custom_format_spec_from_path,
     resolve_builtin_format_spec,
     resolve_custom_format_spec,
 )
@@ -43,16 +61,27 @@ from label_master.infra.reporting import build_run_warnings_payload
 from label_master.interfaces.gui import system_actions
 from label_master.interfaces.gui.system_actions import OutputDirectoryOpenResult
 from label_master.interfaces.gui.viewmodels import (
+    BBoxAuditItemViewModel,
+    BBoxAuditProposalViewModel,
+    DetectorReviewEditorBoxViewModel,
+    DetectorReviewItemViewModel,
     MappingRowViewModel,
+    MissingLabelHintItemViewModel,
+    apply_detector_review_bbox_strategy,
+    approve_detector_review_edited_boxes_view,
+    build_detector_review_editor_state_view,
     build_gui_run_config,
     convert_view,
+    detector_review_final_bbox_xywh_normalized,
+    generate_detector_review_item_view,
     infer_view,
+    list_detector_review_image_paths_view,
     parse_mapping_rows,
     preview_dataset_view,
 )
 
 LOCALHOST_VALUES = {"127.0.0.1", "localhost", "::1"}
-SOURCE_FORMATS = ["auto", "coco", "custom", "kitware", "matlab_ground_truth", "voc", "video_bbox", "yolo"]
+SOURCE_FORMATS = ["auto", "cityscapes", "coco", "custom", "kitware", "matlab_ground_truth", "voc", "video_bbox", "yolo"]
 DESTINATION_FORMATS = ["yolo", "coco"]
 DEFAULT_DESTINATION_FORMAT = "yolo"
 UNMAPPED_POLICIES = ["error", "drop", "identity"]
@@ -61,14 +90,14 @@ PERMISSIVE_INVALID_ANNOTATION_ACTIONS = [
     InvalidAnnotationAction.KEEP.value,
     InvalidAnnotationAction.DROP.value,
 ]
-MAPPING_ACTIONS = ["map", "drop"]
+MAPPING_ACTIONS = ["map", "drop", "drop_frame"]
 OVERSIZE_IMAGE_ACTIONS = ["ignore", "downscale"]
 DEFAULT_INPUT_DIR = "tests/fixtures/us1/coco_minimal"
 DEFAULT_OUTPUT_DIR = "/tmp/label_master_gui_output"
 DEFAULT_MAPPING_ROWS: list[dict[str, str]] = []
 GUI_STATE_FILE_NAME = "gui_state.json"
 PREVIEW_MAX_IMAGE_DIMENSION = 1600
-DEFAULT_PREVIEW_SCAN_LIMIT = 0
+DEFAULT_PREVIEW_SCAN_LIMIT = 100
 MAX_PREVIEW_SCAN_LIMIT = 1_000_000
 RUN_STATUSES = {"idle", "running", "completed", "failed"}
 RUN_EVENTS = {"start", "complete", "fail", "reset"}
@@ -81,9 +110,30 @@ RUN_PROGRESS_BY_STATUS = {
 RUN_INTERRUPTED_DETAIL = "Conversion interrupted before completion. You can run conversion again."
 STREAMLIT_CONTROL_FLOW_EXCEPTION_NAMES = {"StopException", "RerunException"}
 PREVIEW_CLASS_EXAMPLES_PER_CLASS = 3
+CLASSIFICATION_KEYBOARD_ACTIONS = {"previous", "next", "class", "clear"}
+CLASSIFICATION_CONFIG_EXAMPLE = """\
+# classification.yaml (place in the dataset root, or point the GUI at it)
+classes:
+  - key: "1"
+    name: helicopter
+  - key: "2"
+    name: airplane
+  - key: "3"
+    name: bird
+  - key: "0"
+    name: none
+# optional: allow several classes per image (keys toggle each class)
+multi_label: false
+# optional: where labels are stored, relative to the dataset root
+labels_file: classification_labels.json
+"""
 _PREVIEW_KEYBOARD_NAV_COMPONENT = components.declare_component(
     "preview_keyboard_nav",
     path=Path(__file__).resolve().parent / "components" / "preview_keyboard_nav",
+)
+_BBOX_EDITOR_COMPONENT = components.declare_component(
+    "bbox_editor",
+    path=Path(__file__).resolve().parent / "components" / "bbox_editor",
 )
 
 
@@ -105,6 +155,37 @@ class OutputDirectoryBrowseState:
     output_dir_raw: str
     browse_available: bool
     browse_message: str | None
+
+
+@dataclass(frozen=True)
+class CustomFormatFileBrowseState:
+    custom_format_path_raw: str
+    browse_available: bool
+    browse_message: str | None
+
+
+@dataclass(frozen=True)
+class PathBrowseState:
+    path_raw: str
+    browse_available: bool
+    browse_message: str | None
+
+
+@dataclass(frozen=True)
+class BBoxEditorImagePayload:
+    image_data_url: str
+    original_width: int
+    original_height: int
+    display_width: int
+    display_height: int
+
+
+@dataclass(frozen=True)
+class CustomFormatOption:
+    format_id: str
+    display_name: str
+    path: Path
+    description: str | None
 
 
 @dataclass(frozen=True)
@@ -207,10 +288,10 @@ def default_gui_input_directory() -> str:
 def _coerce_out_of_frame_tolerance_px(
     raw_value: Any,
     *,
-    correct_out_of_frame_bboxes: bool,
+    out_of_frame_bbox_policy: str,
 ) -> float:
     tolerance_px = max(0.0, _coerce_float(raw_value, DEFAULT_OUT_OF_FRAME_TOLERANCE_PX))
-    if correct_out_of_frame_bboxes and tolerance_px <= 0.0:
+    if out_of_frame_bbox_policy in {"correct", "warn"} and tolerance_px <= 0.0:
         return DEFAULT_OUT_OF_FRAME_TOLERANCE_PX
     return tolerance_px
 
@@ -246,12 +327,12 @@ def load_persisted_gui_preferences(state_path: Path | None = None) -> dict[str, 
     )
     output_file_stem_prefix = _coerce_text(payload.get("last_output_file_stem_prefix"))
     output_file_stem_suffix = _coerce_text(payload.get("last_output_file_stem_suffix"))
-    correct_out_of_frame_bboxes = payload.get("last_correct_out_of_frame_bboxes")
-    if not isinstance(correct_out_of_frame_bboxes, bool):
-        correct_out_of_frame_bboxes = DEFAULT_CORRECT_OUT_OF_FRAME_BBOXES
+    out_of_frame_bbox_policy_raw = _coerce_text(payload.get("last_out_of_frame_bbox_policy"))
+    if out_of_frame_bbox_policy_raw not in {p.value for p in OutOfFrameBBoxPolicy}:
+        out_of_frame_bbox_policy_raw = DEFAULT_OUT_OF_FRAME_BBOX_POLICY
     out_of_frame_tolerance_px = _coerce_out_of_frame_tolerance_px(
         payload.get("last_out_of_frame_tolerance_px"),
-        correct_out_of_frame_bboxes=correct_out_of_frame_bboxes,
+        out_of_frame_bbox_policy=out_of_frame_bbox_policy_raw,
     )
     min_image_longest_edge_px = max(
         0,
@@ -269,13 +350,49 @@ def load_persisted_gui_preferences(state_path: Path | None = None) -> dict[str, 
     oversize_image_action = _coerce_text(payload.get("last_oversize_image_action")) or "ignore"
     if oversize_image_action not in OVERSIZE_IMAGE_ACTIONS:
         oversize_image_action = "ignore"
+    missing_label_detector_model_path = _coerce_text(payload.get("last_missing_label_detector_model_path"))
+    missing_label_hints_output_dir = _coerce_text(payload.get("last_missing_label_hints_output_dir"))
+    missing_label_confidence_threshold = min(
+        1.0,
+        max(0.0, _coerce_float(payload.get("last_missing_label_confidence_threshold"), 0.25)),
+    )
+    missing_label_iou_threshold = min(
+        1.0,
+        max(0.0, _coerce_float(payload.get("last_missing_label_iou_threshold"), 0.45)),
+    )
+    missing_label_max_detections_per_image = max(
+        1,
+        int(_coerce_float(payload.get("last_missing_label_max_detections_per_image"), 200)),
+    )
+    bbox_audit_output_dir = _coerce_text(payload.get("last_bbox_audit_output_dir"))
+    bbox_audit_match_iou_threshold = min(
+        1.0,
+        max(0.0, _coerce_float(payload.get("last_bbox_audit_match_iou_threshold"), 0.30)),
+    )
+    bbox_audit_correction_iou_threshold = min(
+        1.0,
+        max(0.0, _coerce_float(payload.get("last_bbox_audit_correction_iou_threshold"), 0.85)),
+    )
+    bbox_audit_max_labeled_images = max(
+        1,
+        int(_coerce_float(payload.get("last_bbox_audit_max_labeled_images"), 100)),
+    )
 
     inference_payload = payload.get("last_inference_payload")
     if not isinstance(inference_payload, dict):
         inference_payload = None
 
+    custom_format_id = _coerce_text(payload.get("last_custom_format_id")) or None
+    custom_format_path = _coerce_text(payload.get("last_custom_format_path")) or None
     mapping_seed_signature = _coerce_text(payload.get("last_mapping_seed_signature")) or None
     last_input_dir = _coerce_text(payload.get("last_input_dir"))
+    classification_config_path = _coerce_text(payload.get("last_classification_config_path"))
+    classification_advance_on_label = payload.get("last_classification_advance_on_label")
+    if not isinstance(classification_advance_on_label, bool):
+        classification_advance_on_label = True
+    classification_show_bboxes = payload.get("last_classification_show_bboxes")
+    if not isinstance(classification_show_bboxes, bool):
+        classification_show_bboxes = True
 
     return {
         "gui_input_dir": last_input_dir or DEFAULT_INPUT_DIR,
@@ -290,15 +407,29 @@ def load_persisted_gui_preferences(state_path: Path | None = None) -> dict[str, 
         "gui_input_path_exclude_substring": input_path_exclude_substring,
         "gui_output_file_stem_prefix": output_file_stem_prefix,
         "gui_output_file_stem_suffix": output_file_stem_suffix,
-        "gui_correct_out_of_frame_bboxes": correct_out_of_frame_bboxes,
+        "gui_out_of_frame_bbox_policy": out_of_frame_bbox_policy_raw,
         "gui_out_of_frame_tolerance_px": out_of_frame_tolerance_px,
         "gui_min_image_longest_edge_px": min_image_longest_edge_px,
         "gui_max_image_longest_edge_px": max_image_longest_edge_px,
         "gui_preview_scan_limit": preview_scan_limit,
         "gui_oversize_image_action": oversize_image_action,
+        "gui_missing_label_detector_model_path": missing_label_detector_model_path,
+        "gui_missing_label_hints_output_dir": missing_label_hints_output_dir,
+        "gui_missing_label_confidence_threshold": missing_label_confidence_threshold,
+        "gui_missing_label_iou_threshold": missing_label_iou_threshold,
+        "gui_missing_label_max_detections_per_image": missing_label_max_detections_per_image,
+        "gui_bbox_audit_output_dir": bbox_audit_output_dir,
+        "gui_bbox_audit_match_iou_threshold": bbox_audit_match_iou_threshold,
+        "gui_bbox_audit_correction_iou_threshold": bbox_audit_correction_iou_threshold,
+        "gui_bbox_audit_max_labeled_images": bbox_audit_max_labeled_images,
         "gui_inference_payload": inference_payload,
+        "gui_custom_format_id": custom_format_id,
+        "gui_custom_format_path": custom_format_path,
         "gui_mapping_rows": normalize_mapping_rows(payload.get("last_mapping_rows")),
         "gui_mapping_seed_signature": mapping_seed_signature,
+        "gui_classification_config_path": classification_config_path,
+        "gui_classification_advance_on_label": classification_advance_on_label,
+        "gui_classification_show_bboxes": classification_show_bboxes,
         "gui_last_persisted_input_dir": last_input_dir,
         "gui_last_persisted_state_payload": json.dumps(payload, sort_keys=True) if payload else "",
     }
@@ -336,12 +467,51 @@ def _preview_image_cache_token(dataset_root: Path, image_rel_path: str) -> int:
         return -1
 
 
+OverlayBBox = (
+    tuple[float, float, float, float, str]
+    | tuple[float, float, float, float, str, str]
+)
+
+
+def _normalize_overlay_bbox(
+    bbox: OverlayBBox,
+) -> tuple[float, float, float, float, str, str]:
+    if len(bbox) == 5:
+        x, y, w, h, label = bbox
+        color = "red"
+    elif len(bbox) == 6:
+        x, y, w, h, label, color = bbox
+    else:
+        raise ValueError("Overlay bbox entries must have 5 or 6 values")
+
+    return float(x), float(y), float(w), float(h), str(label), str(color)
+
+
+def _overlay_legend_item(label: str, color: str) -> str:
+    safe_label = escape(label)
+    safe_color = escape(color)
+    return (
+        '<span style="display:inline-flex;align-items:center;margin-right:1rem;">'
+        f'<span style="display:inline-block;width:0.85rem;height:0.85rem;background:{safe_color};'
+        'border:1px solid rgba(0, 0, 0, 0.35);margin-right:0.35rem;"></span>'
+        f"{safe_label}</span>"
+    )
+
+
+@lru_cache(maxsize=16)
+def _load_overlay_font(font_size: int) -> ImageFont.ImageFont:
+    try:
+        return ImageFont.truetype("DejaVuSans.ttf", size=font_size)
+    except OSError:
+        return ImageFont.load_default()
+
+
 @lru_cache(maxsize=256)
 def _render_preview_overlay_cached(
     *,
     dataset_root: str,
     image_rel_path: str,
-    bboxes: tuple[tuple[float, float, float, float, str], ...],
+    bboxes: tuple[tuple[float, float, float, float, str, str], ...],
     image_cache_token: int,
 ) -> tuple[bytes | None, tuple[str, ...]]:
     del image_cache_token
@@ -373,20 +543,30 @@ def _render_preview_overlay_cached(
 
     draw = ImageDraw.Draw(canvas)
     line_width = max(1, int(round(3 * scale)))
-    label_height = 16
-    for x, y, w, h, label in bboxes:
+    font_size = max(16, int(round(22 * scale)))
+    font = _load_overlay_font(font_size)
+    label_padding_x = max(4, int(round(6 * scale)))
+    label_padding_y = max(3, int(round(4 * scale)))
+    for x, y, w, h, label, color in bboxes:
         scaled_x = x * scale
         scaled_y = y * scale
         scaled_w = w * scale
         scaled_h = h * scale
         x2 = scaled_x + scaled_w
         y2 = scaled_y + scaled_h
-        draw.rectangle((scaled_x, scaled_y, x2, y2), outline="red", width=line_width)
+        draw.rectangle((scaled_x, scaled_y, x2, y2), outline=color, width=line_width)
+        text_left, text_top, text_right, text_bottom = draw.textbbox((0, 0), label, font=font)
+        label_width = max(40, int((text_right - text_left) + (label_padding_x * 2)))
+        label_height = int((text_bottom - text_top) + (label_padding_y * 2))
         label_x = max(0, int(scaled_x))
         label_y = max(0, int(scaled_y) - label_height)
-        label_width = max(40, int(len(label) * 8) + 8)
-        draw.rectangle((label_x, label_y, label_x + label_width, label_y + label_height), fill="red")
-        draw.text((label_x + 4, label_y + 2), label, fill="white")
+        draw.rectangle((label_x, label_y, label_x + label_width, label_y + label_height), fill=color)
+        draw.text(
+            (label_x + label_padding_x, label_y + label_padding_y),
+            label,
+            fill="white",
+            font=font,
+        )
 
     buffer = BytesIO()
     canvas.save(buffer, format="PNG")
@@ -397,12 +577,12 @@ def render_preview_overlay(
     *,
     dataset_root: Path,
     image_rel_path: str,
-    bboxes: list[tuple[float, float, float, float, str]],
+    bboxes: list[OverlayBBox],
 ) -> tuple[Image.Image | None, list[str]]:
     overlay_bytes, warnings = _render_preview_overlay_cached(
         dataset_root=str(dataset_root.expanduser().resolve()),
         image_rel_path=image_rel_path,
-        bboxes=tuple((float(x), float(y), float(w), float(h), str(label)) for x, y, w, h, label in bboxes),
+        bboxes=tuple(_normalize_overlay_bbox(bbox) for bbox in bboxes),
         image_cache_token=_preview_image_cache_token(dataset_root, image_rel_path),
     )
     if overlay_bytes is None:
@@ -412,6 +592,293 @@ def render_preview_overlay(
         return opened.copy(), list(warnings)
 
 
+@lru_cache(maxsize=256)
+def _load_bbox_editor_image_payload_cached(
+    *,
+    dataset_root: str,
+    image_rel_path: str,
+    image_cache_token: int,
+) -> tuple[BBoxEditorImagePayload | None, tuple[str, ...]]:
+    del image_cache_token
+
+    image_path = Path(dataset_root) / image_rel_path
+    try:
+        if image_path.exists():
+            with Image.open(image_path) as opened:
+                rgb_image = opened.convert("RGB")
+        else:
+            rgb_image = load_video_bbox_preview_image(Path(dataset_root), image_rel_path)
+    except ValueError:
+        return None, (f"Preview image not found: {image_rel_path}",)
+    except Exception as exc:
+        return None, (f"Preview image could not be loaded: {exc}",)
+
+    original_width, original_height = rgb_image.size
+    scale = min(1.0, PREVIEW_MAX_IMAGE_DIMENSION / max(original_width, original_height))
+    if scale < 1.0:
+        display_image = rgb_image.resize(
+            (
+                max(1, int(round(original_width * scale))),
+                max(1, int(round(original_height * scale))),
+            ),
+            Image.Resampling.LANCZOS,
+        )
+    else:
+        display_image = rgb_image.copy()
+
+    buffer = BytesIO()
+    display_image.save(buffer, format="PNG")
+    encoded = base64.b64encode(buffer.getvalue()).decode("ascii")
+    return (
+        BBoxEditorImagePayload(
+            image_data_url=f"data:image/png;base64,{encoded}",
+            original_width=original_width,
+            original_height=original_height,
+            display_width=display_image.size[0],
+            display_height=display_image.size[1],
+        ),
+        (),
+    )
+
+
+def load_bbox_editor_image_payload(
+    *,
+    dataset_root: Path,
+    image_rel_path: str,
+) -> tuple[BBoxEditorImagePayload | None, list[str]]:
+    payload, warnings = _load_bbox_editor_image_payload_cached(
+        dataset_root=str(dataset_root.expanduser().resolve()),
+        image_rel_path=image_rel_path,
+        image_cache_token=_preview_image_cache_token(dataset_root, image_rel_path),
+    )
+    return payload, list(warnings)
+
+
+def _default_missing_label_hints_output_dir(output_dir_raw: str) -> Path:
+    output_dir_text = _coerce_text(output_dir_raw) or DEFAULT_OUTPUT_DIR
+    return Path(output_dir_text).expanduser() / "missing_label_hints"
+
+
+def _resolve_missing_label_hints_output_dir(
+    output_dir_raw: str,
+    hints_output_dir_raw: str,
+) -> Path:
+    hints_output_text = _coerce_text(hints_output_dir_raw)
+    if hints_output_text:
+        return Path(hints_output_text).expanduser()
+    return _default_missing_label_hints_output_dir(output_dir_raw)
+
+
+def _missing_label_review_key(
+    kind: str,
+    label_rel_path: str,
+    detection_index: int | None = None,
+) -> str:
+    normalized = (
+        label_rel_path.replace("\\", "/")
+        .replace("/", "__")
+        .replace(".", "_")
+        .replace(":", "_")
+    )
+    suffix = f"_{detection_index}" if detection_index is not None else ""
+    return f"gui_missing_label_{kind}_{normalized}{suffix}"
+
+
+def _selected_missing_label_hint_detections(
+    hint: MissingLabelHintItemViewModel,
+    session_state: MutableMapping[str, Any],
+) -> list[Any]:
+    return [
+        detection
+        for index, detection in enumerate(hint.detections)
+        if bool(
+            session_state.get(
+                _missing_label_review_key(
+                    "detection",
+                    hint.suggested_label_rel_path,
+                    detection_index=index,
+                ),
+                True,
+            )
+        )
+    ]
+
+
+def _materialize_approved_missing_label_hints(
+    hints: list[MissingLabelHintItemViewModel],
+    session_state: MutableMapping[str, Any],
+) -> list[MissingLabelHintItemViewModel]:
+    approved_hints: list[MissingLabelHintItemViewModel] = []
+    for hint in hints:
+        if not bool(
+            session_state.get(
+                _missing_label_review_key("approve", hint.suggested_label_rel_path),
+                False,
+            )
+        ):
+            continue
+
+        selected_detections = _selected_missing_label_hint_detections(hint, session_state)
+        if not selected_detections:
+            continue
+
+        approved_hints.append(
+            MissingLabelHintItemViewModel(
+                image_rel_path=hint.image_rel_path,
+                suggested_label_rel_path=hint.suggested_label_rel_path,
+                detections=selected_detections,
+            )
+        )
+
+    return approved_hints
+
+
+def _default_bbox_audit_output_dir(output_dir_raw: str) -> Path:
+    output_dir_text = _coerce_text(output_dir_raw) or DEFAULT_OUTPUT_DIR
+    return Path(output_dir_text).expanduser() / "bbox_audit"
+
+
+def _resolve_bbox_audit_output_dir(
+    output_dir_raw: str,
+    audit_output_dir_raw: str,
+) -> Path:
+    audit_output_text = _coerce_text(audit_output_dir_raw)
+    if audit_output_text:
+        return Path(audit_output_text).expanduser()
+    return _default_bbox_audit_output_dir(output_dir_raw)
+
+
+def _bbox_audit_review_key(
+    kind: str,
+    label_rel_path: str,
+    proposal_index: int | None = None,
+) -> str:
+    normalized = (
+        label_rel_path.replace("\\", "/")
+        .replace("/", "__")
+        .replace(".", "_")
+        .replace(":", "_")
+    )
+    suffix = f"_{proposal_index}" if proposal_index is not None else ""
+    return f"gui_bbox_audit_{kind}_{normalized}{suffix}"
+
+
+def _selected_bbox_audit_proposals(
+    item: BBoxAuditItemViewModel,
+    session_state: MutableMapping[str, Any],
+) -> list[BBoxAuditProposalViewModel]:
+    return [
+        proposal
+        for index, proposal in enumerate(item.proposals)
+        if bool(
+            session_state.get(
+                _bbox_audit_review_key(
+                    "proposal",
+                    item.label_rel_path,
+                    proposal_index=index,
+                ),
+                True,
+            )
+        )
+    ]
+
+
+def _materialize_approved_bbox_audits(
+    items: list[BBoxAuditItemViewModel],
+    session_state: MutableMapping[str, Any],
+) -> list[BBoxAuditItemViewModel]:
+    approved_items: list[BBoxAuditItemViewModel] = []
+    for item in items:
+        if not bool(
+            session_state.get(
+                _bbox_audit_review_key("approve", item.label_rel_path),
+                False,
+            )
+        ):
+            continue
+
+        selected_proposals = _selected_bbox_audit_proposals(item, session_state)
+        if not selected_proposals:
+            continue
+
+        approved_items.append(
+            BBoxAuditItemViewModel(
+                image_rel_path=item.image_rel_path,
+                label_rel_path=item.label_rel_path,
+                existing_label_count=item.existing_label_count,
+                proposals=selected_proposals,
+            )
+        )
+
+    return approved_items
+
+
+def _detector_review_key(
+    kind: str,
+    label_rel_path: str,
+    proposal_index: int | None = None,
+) -> str:
+    normalized = (
+        label_rel_path.replace("\\", "/")
+        .replace("/", "__")
+        .replace(".", "_")
+        .replace(":", "_")
+    )
+    suffix = f"_{proposal_index}" if proposal_index is not None else ""
+    return f"gui_detector_review_{kind}_{normalized}{suffix}"
+
+
+def _selected_detector_review_proposals(
+    item: DetectorReviewItemViewModel,
+    session_state: MutableMapping[str, Any],
+) -> list[BBoxAuditProposalViewModel]:
+    return [
+        proposal
+        for index, proposal in enumerate(item.proposals)
+        if bool(
+            session_state.get(
+                _detector_review_key(
+                    "proposal",
+                    item.label_rel_path,
+                    proposal_index=index,
+                ),
+                True,
+            )
+        )
+    ]
+
+
+def _materialize_approved_detector_review_items(
+    items: list[DetectorReviewItemViewModel],
+    session_state: MutableMapping[str, Any],
+) -> list[DetectorReviewItemViewModel]:
+    approved_items: list[DetectorReviewItemViewModel] = []
+    for item in items:
+        if not bool(
+            session_state.get(
+                _detector_review_key("approve", item.label_rel_path),
+                False,
+            )
+        ):
+            continue
+
+        selected_proposals = _selected_detector_review_proposals(item, session_state)
+        if not selected_proposals:
+            continue
+
+        approved_items.append(
+            DetectorReviewItemViewModel(
+                source_kind=item.source_kind,
+                image_rel_path=item.image_rel_path,
+                label_rel_path=item.label_rel_path,
+                existing_label_count=item.existing_label_count,
+                proposals=selected_proposals,
+            )
+        )
+
+    return approved_items
+
+
 def _coerce_text(value: Any) -> str:
     if value is None:
         return ""
@@ -419,6 +886,27 @@ def _coerce_text(value: Any) -> str:
         return ""
     text = str(value).strip()
     return "" if text.lower() == "nan" else text
+
+
+def _format_bbox_text(
+    bbox_xywh_normalized: tuple[float, float, float, float] | None,
+) -> str:
+    if bbox_xywh_normalized is None:
+        return ""
+    return "(" + ", ".join(f"{value:.3f}" for value in bbox_xywh_normalized) + ")"
+
+
+def _editor_box_to_dict(box: DetectorReviewEditorBoxViewModel) -> dict[str, Any]:
+    return {
+        "box_id": box.box_id,
+        "class_id": box.class_id,
+        "class_name": box.class_name,
+        "cx": box.bbox_xywh_normalized[0],
+        "cy": box.bbox_xywh_normalized[1],
+        "w": box.bbox_xywh_normalized[2],
+        "h": box.bbox_xywh_normalized[3],
+        "source": box.source,
+    }
 
 
 def _coerce_float(value: Any, default: float) -> float:
@@ -435,6 +923,46 @@ def _coerce_float(value: Any, default: float) -> float:
         return float(text)
     except ValueError:
         return default
+
+
+def _coerce_editor_boxes(
+    raw_boxes: Any,
+    *,
+    class_name_map: dict[int, str],
+) -> list[DetectorReviewEditorBoxViewModel]:
+    if not isinstance(raw_boxes, list):
+        return []
+
+    normalized_boxes: list[DetectorReviewEditorBoxViewModel] = []
+    for index, raw_box in enumerate(raw_boxes):
+        if not isinstance(raw_box, dict):
+            continue
+        try:
+            class_id = int(raw_box.get("class_id"))
+        except (TypeError, ValueError):
+            continue
+
+        width = max(0.0, min(1.0, _coerce_float(raw_box.get("w"), 0.0)))
+        height = max(0.0, min(1.0, _coerce_float(raw_box.get("h"), 0.0)))
+        if width <= 0.0 or height <= 0.0:
+            continue
+
+        center_x = max(0.0, min(1.0, _coerce_float(raw_box.get("cx"), 0.5)))
+        center_y = max(0.0, min(1.0, _coerce_float(raw_box.get("cy"), 0.5)))
+        box_id = _coerce_text(raw_box.get("box_id")) or f"manual:{index + 1}"
+        class_name = class_name_map.get(class_id) or _coerce_text(raw_box.get("class_name")) or f"class_{class_id}"
+        source = _coerce_text(raw_box.get("source")) or "manual"
+        normalized_boxes.append(
+            DetectorReviewEditorBoxViewModel(
+                box_id=box_id,
+                class_id=class_id,
+                class_name=class_name,
+                bbox_xywh_normalized=(center_x, center_y, width, height),
+                source=source,
+            )
+        )
+
+    return normalized_boxes
 
 
 def normalize_mapping_rows(value: Any) -> list[dict[str, str]]:
@@ -675,6 +1203,8 @@ def _format_mapping_action_label(action: str) -> str:
         return "keep"
     if normalized == "drop":
         return "drop"
+    if normalized == "drop_frame":
+        return "drop frame"
     return normalized or "keep"
 
 
@@ -875,6 +1405,91 @@ def _preview_keyboard_navigation_action(
     return action
 
 
+def _coerce_classification_keyboard_action(
+    payload: Any,
+    *,
+    last_nonce: int,
+) -> tuple[str | None, str | None, int]:
+    if not isinstance(payload, dict):
+        return None, None, last_nonce
+
+    try:
+        nonce = int(_coerce_text(payload.get("nonce")))
+    except (TypeError, ValueError):
+        return None, None, last_nonce
+
+    if nonce <= last_nonce:
+        return None, None, last_nonce
+
+    action = _coerce_text(payload.get("action")).lower()
+    if action not in CLASSIFICATION_KEYBOARD_ACTIONS:
+        return None, None, nonce
+
+    key = _coerce_text(payload.get("key")).lower() or None
+    if action == "class" and key is None:
+        return None, None, nonce
+    return action, key, nonce
+
+
+def _classification_keyboard_action(
+    *,
+    enabled: bool,
+    previous_disabled: bool,
+    next_disabled: bool,
+    class_keys: list[str],
+) -> tuple[str | None, str | None]:
+    payload = _PREVIEW_KEYBOARD_NAV_COMPONENT(
+        enabled=enabled,
+        previous_disabled=previous_disabled,
+        next_disabled=next_disabled,
+        class_keys=list(class_keys),
+        clear_enabled=True,
+        default=None,
+        key="gui_classification_keyboard_nav",
+        tab_index=-1,
+    )
+    last_nonce = int(st.session_state.get("gui_classification_keyboard_event_nonce", 0))
+    action, key, nonce = _coerce_classification_keyboard_action(payload, last_nonce=last_nonce)
+    st.session_state["gui_classification_keyboard_event_nonce"] = nonce
+    return action, key
+
+
+def resolve_classification_config_candidate(
+    config_path_raw: str,
+    *,
+    dataset_root: Path | None,
+) -> Path | None:
+    """Explicit config path wins; otherwise look for a default file in the dataset root."""
+
+    normalized = config_path_raw.strip()
+    if normalized:
+        return Path(normalized).expanduser()
+    if dataset_root is None:
+        return None
+    return find_default_classification_config_path(dataset_root)
+
+
+def classification_index_after_label(
+    current_index: int,
+    *,
+    max_index: int,
+    advance_on_label: bool,
+    multi_label: bool,
+) -> int:
+    if advance_on_label and not multi_label and current_index < max_index:
+        return current_index + 1
+    return current_index
+
+
+def _classification_dataset_signature(
+    dataset_root: Path,
+    *,
+    include_substring: str | None,
+    exclude_substring: str | None,
+) -> str:
+    return f"{dataset_root.expanduser().resolve()}::{include_substring or ''}::{exclude_substring or ''}"
+
+
 def _format_payload_yaml(payload: dict[str, Any]) -> str:
     dumped = yaml.safe_dump(payload, sort_keys=False)
     return str(dumped).strip()
@@ -885,14 +1500,21 @@ def format_details_yaml(
     *,
     dataset_root: Path | None,
     inference_payload: dict[str, Any] | None = None,
+    custom_format_id: str | None = None,
+    custom_format_path: Path | None = None,
 ) -> str | None:
     normalized_format = _coerce_text(source_format)
     spec = None
 
     if normalized_format == "custom" and dataset_root is not None:
-        score, spec_id = detect_custom_format(dataset_root, sample_limit=100)
-        if score > 0 and spec_id:
-            spec = resolve_custom_format_spec(spec_id, dataset_root)
+        if custom_format_path is not None:
+            spec = load_custom_format_spec_from_path(custom_format_path)
+        if spec is None and custom_format_id:
+            spec = resolve_custom_format_spec(custom_format_id, dataset_root)
+        if spec is None:
+            score, spec_id = detect_custom_format(dataset_root, sample_limit=100)
+            if score > 0 and spec_id:
+                spec = resolve_custom_format_spec(spec_id, dataset_root)
     elif normalized_format:
         spec = resolve_builtin_format_spec(normalized_format)
 
@@ -909,6 +1531,80 @@ def format_details_yaml(
 
 def _resolved_input_dir_token(input_path: Path) -> str:
     return str(input_path.expanduser().resolve())
+
+
+def _custom_format_options(dataset_root: Path | None) -> list[CustomFormatOption]:
+    if dataset_root is None:
+        return []
+    return [
+        CustomFormatOption(
+            format_id=entry.spec.format_id,
+            display_name=entry.spec.display_name,
+            path=entry.path,
+            description=entry.spec.description,
+        )
+        for entry in custom_format_spec_entries(dataset_root)
+    ]
+
+
+def _default_custom_format_id(
+    dataset_root: Path,
+    *,
+    options: list[CustomFormatOption],
+) -> str | None:
+    if not options:
+        return None
+    valid_ids = {option.format_id for option in options}
+    score, detected_id = detect_custom_format(dataset_root, sample_limit=100)
+    if score > 0 and detected_id in valid_ids:
+        return detected_id
+    return options[0].format_id
+
+
+def _selected_custom_format_option(
+    options: list[CustomFormatOption],
+    format_id: str | None,
+) -> CustomFormatOption | None:
+    if not format_id:
+        return None
+    for option in options:
+        if option.format_id == format_id:
+            return option
+    return None
+
+
+def _format_custom_format_option(option: CustomFormatOption) -> str:
+    return f"{option.path.name} ({option.display_name})"
+
+
+def _explicit_custom_format_option(raw_path: str | None) -> tuple[CustomFormatOption | None, str | None]:
+    path_value = (raw_path or "").strip()
+    if not path_value:
+        return None, None
+
+    candidate = Path(path_value).expanduser()
+    if not candidate.exists():
+        return None, f"Custom format YAML does not exist: {candidate}"
+    if not candidate.is_file():
+        return None, f"Custom format YAML path is not a file: {candidate}"
+    if candidate.suffix.lower() not in {".yaml", ".yml"}:
+        return None, f"Custom format YAML must end with .yaml or .yml: {candidate.name}"
+
+    try:
+        spec = load_custom_format_spec_from_path(candidate)
+    except Exception as exc:
+        return None, str(exc)
+
+    resolved_path = candidate.resolve()
+    return (
+        CustomFormatOption(
+            format_id=spec.format_id,
+            display_name=spec.display_name,
+            path=resolved_path,
+            description=spec.description,
+        ),
+        None,
+    )
 
 
 def _build_inference_payload(infer_vm: Any, *, input_path: Path) -> dict[str, Any]:
@@ -1042,6 +1738,9 @@ def describe_class_label_source(
     if source_format == "coco":
         return "COCO labels source: categories from annotations.json."
 
+    if source_format == "cityscapes":
+        return "Cityscapes labels source: polygon instance labels normalized from Cityscapes JSON annotations."
+
     if source_format == "kitware":
         return "Kitware labels source: per-directory CSV bbox columns."
 
@@ -1141,9 +1840,9 @@ def _validate_run_inputs(
 
 
 def _resolve_preview_source_format(src: str, inferred_format: str | None) -> str | None:
-    if src in {"coco", "custom", "kitware", "matlab_ground_truth", "voc", "video_bbox", "yolo"}:
+    if src in {"cityscapes", "coco", "custom", "kitware", "matlab_ground_truth", "voc", "video_bbox", "yolo"}:
         return src
-    if inferred_format in {"coco", "custom", "kitware", "matlab_ground_truth", "voc", "video_bbox", "yolo"}:
+    if inferred_format in {"cityscapes", "coco", "custom", "kitware", "matlab_ground_truth", "voc", "video_bbox", "yolo"}:
         return inferred_format
     return None
 
@@ -1234,6 +1933,185 @@ def _on_browse_output_directory() -> None:
     st.session_state["gui_output_dir"] = browse_state.output_dir_raw
     st.session_state["gui_output_browse_available"] = browse_state.browse_available
     st.session_state["gui_output_browse_message"] = browse_state.browse_message
+
+
+def _resolve_custom_format_browse_initial_path(
+    current_custom_format_path: str,
+    *,
+    dataset_root: Path | None = None,
+) -> Path | None:
+    current_value = current_custom_format_path.strip()
+    if current_value:
+        candidate = Path(current_value).expanduser()
+        if candidate.exists():
+            return candidate.resolve()
+        parent = candidate.parent
+        if parent.exists() and parent.is_dir():
+            return parent.resolve()
+    if dataset_root is not None and dataset_root.exists() and dataset_root.is_dir():
+        return dataset_root.resolve()
+    return None
+
+
+def attempt_custom_format_file_browse(
+    current_custom_format_path: str,
+    *,
+    dataset_root: Path | None = None,
+) -> CustomFormatFileBrowseState:
+    initial_path = _resolve_custom_format_browse_initial_path(
+        current_custom_format_path,
+        dataset_root=dataset_root,
+    )
+    result = system_actions.browse_for_file(
+        initial_path=initial_path,
+        dialog_title="Select custom format YAML",
+    )
+    custom_format_path_raw = current_custom_format_path
+    if result.selected_path is not None:
+        custom_format_path_raw = str(result.selected_path)
+
+    if result.message is not None:
+        message = result.message
+    elif result.available:
+        message = "Selected file."
+    else:
+        message = "Browse unavailable. Enter a path manually."
+
+    return CustomFormatFileBrowseState(
+        custom_format_path_raw=custom_format_path_raw,
+        browse_available=result.available,
+        browse_message=message,
+    )
+
+
+def _on_browse_custom_format_file() -> None:
+    input_dir_raw = _coerce_text(st.session_state.get("gui_input_dir", ""))
+    dataset_root = Path(input_dir_raw).expanduser() if input_dir_raw else None
+    browse_state = attempt_custom_format_file_browse(
+        _coerce_text(st.session_state.get("gui_custom_format_path", "")),
+        dataset_root=dataset_root,
+    )
+    st.session_state["gui_custom_format_path"] = browse_state.custom_format_path_raw
+    st.session_state["gui_custom_format_browse_available"] = browse_state.browse_available
+    st.session_state["gui_custom_format_browse_message"] = browse_state.browse_message
+
+
+def _resolve_file_browse_initial_path(current_path: str) -> Path | None:
+    current_value = current_path.strip()
+    if not current_value:
+        return None
+
+    candidate = Path(current_value).expanduser()
+    if candidate.exists():
+        return candidate.resolve()
+
+    parent = candidate.parent
+    if parent.exists() and parent.is_dir():
+        return parent.resolve()
+
+    return None
+
+
+def attempt_file_path_browse(
+    current_path: str,
+    *,
+    dialog_title: str,
+    yaml_only: bool = False,
+) -> PathBrowseState:
+    result = system_actions.browse_for_file(
+        initial_path=_resolve_file_browse_initial_path(current_path),
+        dialog_title=dialog_title,
+        yaml_only=yaml_only,
+    )
+    path_raw = current_path
+    if result.selected_path is not None:
+        path_raw = str(result.selected_path)
+
+    if result.message is not None:
+        message = result.message
+    elif result.available:
+        message = "Selected file."
+    else:
+        message = "Browse unavailable. Enter a path manually."
+
+    return PathBrowseState(
+        path_raw=path_raw,
+        browse_available=result.available,
+        browse_message=message,
+    )
+
+
+def attempt_directory_path_browse(
+    current_path: str,
+    *,
+    dialog_title: str,
+    allow_parent_fallback: bool = True,
+) -> PathBrowseState:
+    result = system_actions.browse_for_directory(
+        initial_directory=_resolve_directory_browse_initial_directory(
+            current_path,
+            allow_parent_fallback=allow_parent_fallback,
+        ),
+        dialog_title=dialog_title,
+    )
+    path_raw = current_path
+    if result.selected_path is not None:
+        path_raw = str(result.selected_path)
+
+    if result.message is not None:
+        message = result.message
+    elif result.available:
+        message = "Selected directory."
+    else:
+        message = "Browse unavailable. Enter a path manually."
+
+    return PathBrowseState(
+        path_raw=path_raw,
+        browse_available=result.available,
+        browse_message=message,
+    )
+
+
+def _on_browse_missing_label_detector_model_path() -> None:
+    browse_state = attempt_file_path_browse(
+        _coerce_text(st.session_state.get("gui_missing_label_detector_model_path", "")),
+        dialog_title="Select detector model file",
+        yaml_only=False,
+    )
+    st.session_state["gui_missing_label_detector_model_path"] = browse_state.path_raw
+    st.session_state["gui_missing_label_detector_model_browse_available"] = browse_state.browse_available
+    st.session_state["gui_missing_label_detector_model_browse_message"] = browse_state.browse_message
+
+
+def _on_browse_missing_label_hints_output_dir() -> None:
+    browse_state = attempt_directory_path_browse(
+        _coerce_text(st.session_state.get("gui_missing_label_hints_output_dir", "")),
+        dialog_title="Select hints staging directory",
+    )
+    st.session_state["gui_missing_label_hints_output_dir"] = browse_state.path_raw
+    st.session_state["gui_missing_label_hints_output_browse_available"] = browse_state.browse_available
+    st.session_state["gui_missing_label_hints_output_browse_message"] = browse_state.browse_message
+
+
+def _on_browse_bbox_audit_output_dir() -> None:
+    browse_state = attempt_directory_path_browse(
+        _coerce_text(st.session_state.get("gui_bbox_audit_output_dir", "")),
+        dialog_title="Select bbox audit report directory",
+    )
+    st.session_state["gui_bbox_audit_output_dir"] = browse_state.path_raw
+    st.session_state["gui_bbox_audit_output_browse_available"] = browse_state.browse_available
+    st.session_state["gui_bbox_audit_output_browse_message"] = browse_state.browse_message
+
+
+def _on_browse_classification_config_path() -> None:
+    browse_state = attempt_file_path_browse(
+        _coerce_text(st.session_state.get("gui_classification_config_path", "")),
+        dialog_title="Select classification config (YAML or JSON)",
+        yaml_only=False,
+    )
+    st.session_state["gui_classification_config_path"] = browse_state.path_raw
+    st.session_state["gui_classification_config_browse_available"] = browse_state.browse_available
+    st.session_state["gui_classification_config_browse_message"] = browse_state.browse_message
 
 
 def transition_run_state(current_status: str, event: str) -> tuple[str, int]:
@@ -1472,9 +2350,9 @@ def _build_persistable_gui_state() -> dict[str, Any]:
     destination_format = _coerce_text(st.session_state.get("gui_dst"))
     inference_payload = st.session_state.get("gui_inference_payload")
     mapping_seed_signature = _coerce_text(st.session_state.get("gui_mapping_seed_signature")) or None
-    correct_out_of_frame_bboxes = bool(
-        st.session_state.get("gui_correct_out_of_frame_bboxes", DEFAULT_CORRECT_OUT_OF_FRAME_BBOXES)
-    )
+    out_of_frame_bbox_policy = _coerce_text(
+        st.session_state.get("gui_out_of_frame_bbox_policy", DEFAULT_OUT_OF_FRAME_BBOX_POLICY)
+    ) or DEFAULT_OUT_OF_FRAME_BBOX_POLICY
 
     if destination_format not in DESTINATION_FORMATS:
         destination_format = DEFAULT_DESTINATION_FORMAT
@@ -1484,6 +2362,7 @@ def _build_persistable_gui_state() -> dict[str, Any]:
     return {
         "last_input_dir": validated_input_dir or persisted_input_dir or DEFAULT_INPUT_DIR,
         "last_output_dir": output_dir,
+        "last_custom_format_id": _coerce_text(st.session_state.get("gui_custom_format_id")) or None,
         "last_dst": destination_format,
         "last_validation_mode": (
             _coerce_text(st.session_state.get("gui_validation_mode"))
@@ -1511,10 +2390,10 @@ def _build_persistable_gui_state() -> dict[str, Any]:
         "last_output_file_stem_suffix": sanitize_output_file_stem_affix(
             _coerce_text(st.session_state.get("gui_output_file_stem_suffix"))
         ),
-        "last_correct_out_of_frame_bboxes": correct_out_of_frame_bboxes,
+        "last_out_of_frame_bbox_policy": out_of_frame_bbox_policy,
         "last_out_of_frame_tolerance_px": _coerce_out_of_frame_tolerance_px(
             st.session_state.get("gui_out_of_frame_tolerance_px"),
-            correct_out_of_frame_bboxes=correct_out_of_frame_bboxes,
+            out_of_frame_bbox_policy=out_of_frame_bbox_policy,
         ),
         "last_min_image_longest_edge_px": max(
             0,
@@ -1546,14 +2425,69 @@ def _build_persistable_gui_state() -> dict[str, Any]:
                 ),
             ),
         ),
+        "last_missing_label_detector_model_path": (
+            _coerce_text(st.session_state.get("gui_missing_label_detector_model_path")) or None
+        ),
+        "last_missing_label_hints_output_dir": (
+            _coerce_text(st.session_state.get("gui_missing_label_hints_output_dir")) or None
+        ),
+        "last_missing_label_confidence_threshold": min(
+            1.0,
+            max(
+                0.0,
+                _coerce_float(st.session_state.get("gui_missing_label_confidence_threshold"), 0.25),
+            ),
+        ),
+        "last_missing_label_iou_threshold": min(
+            1.0,
+            max(
+                0.0,
+                _coerce_float(st.session_state.get("gui_missing_label_iou_threshold"), 0.45),
+            ),
+        ),
+        "last_missing_label_max_detections_per_image": max(
+            1,
+            int(
+                _coerce_float(
+                    st.session_state.get("gui_missing_label_max_detections_per_image"),
+                    200,
+                )
+            ),
+        ),
+        "last_bbox_audit_output_dir": _coerce_text(st.session_state.get("gui_bbox_audit_output_dir")) or None,
+        "last_bbox_audit_max_labeled_images": max(
+            1,
+            int(_coerce_float(st.session_state.get("gui_bbox_audit_max_labeled_images"), 100)),
+        ),
+        "last_bbox_audit_match_iou_threshold": min(
+            1.0,
+            max(0.0, _coerce_float(st.session_state.get("gui_bbox_audit_match_iou_threshold"), 0.30)),
+        ),
+        "last_bbox_audit_correction_iou_threshold": min(
+            1.0,
+            max(
+                0.0,
+                _coerce_float(st.session_state.get("gui_bbox_audit_correction_iou_threshold"), 0.85),
+            ),
+        ),
         "last_oversize_image_action": (
             _coerce_text(st.session_state.get("gui_oversize_image_action"))
             if _coerce_text(st.session_state.get("gui_oversize_image_action")) in OVERSIZE_IMAGE_ACTIONS
             else "ignore"
         ),
+        "last_custom_format_path": _coerce_text(st.session_state.get("gui_custom_format_path")) or None,
         "last_inference_payload": inference_payload,
         "last_mapping_rows": normalize_mapping_rows(st.session_state.get("gui_mapping_rows")),
         "last_mapping_seed_signature": mapping_seed_signature,
+        "last_classification_config_path": (
+            _coerce_text(st.session_state.get("gui_classification_config_path")) or None
+        ),
+        "last_classification_advance_on_label": bool(
+            st.session_state.get("gui_classification_advance_on_label", True)
+        ),
+        "last_classification_show_bboxes": bool(
+            st.session_state.get("gui_classification_show_bboxes", True)
+        ),
     }
 
 
@@ -1607,11 +2541,11 @@ def _initialize_state() -> None:
         st.session_state["gui_output_file_stem_prefix"] = persisted_preferences["gui_output_file_stem_prefix"]
     if "gui_output_file_stem_suffix" not in st.session_state:
         st.session_state["gui_output_file_stem_suffix"] = persisted_preferences["gui_output_file_stem_suffix"]
-    if "gui_correct_out_of_frame_bboxes" not in st.session_state:
-        st.session_state["gui_correct_out_of_frame_bboxes"] = persisted_preferences["gui_correct_out_of_frame_bboxes"]
+    if "gui_out_of_frame_bbox_policy" not in st.session_state:
+        st.session_state["gui_out_of_frame_bbox_policy"] = persisted_preferences["gui_out_of_frame_bbox_policy"]
     if "gui_out_of_frame_tolerance_px" not in st.session_state:
         st.session_state["gui_out_of_frame_tolerance_px"] = persisted_preferences["gui_out_of_frame_tolerance_px"]
-    elif bool(st.session_state.get("gui_correct_out_of_frame_bboxes", DEFAULT_CORRECT_OUT_OF_FRAME_BBOXES)):
+    elif _coerce_text(st.session_state.get("gui_out_of_frame_bbox_policy", DEFAULT_OUT_OF_FRAME_BBOX_POLICY)) in {"correct", "warn"}:
         current_out_of_frame_tolerance_px = _coerce_float(
             st.session_state.get("gui_out_of_frame_tolerance_px"),
             DEFAULT_OUT_OF_FRAME_TOLERANCE_PX,
@@ -1634,6 +2568,10 @@ def _initialize_state() -> None:
         st.session_state["gui_copy_images"] = True
     if "gui_inference_payload" not in st.session_state:
         st.session_state["gui_inference_payload"] = persisted_preferences["gui_inference_payload"]
+    if "gui_custom_format_id" not in st.session_state:
+        st.session_state["gui_custom_format_id"] = persisted_preferences["gui_custom_format_id"]
+    if "gui_custom_format_path" not in st.session_state:
+        st.session_state["gui_custom_format_path"] = persisted_preferences["gui_custom_format_path"]
     if "gui_inference_error" not in st.session_state:
         st.session_state["gui_inference_error"] = None
     if "gui_inference_error_input_dir" not in st.session_state:
@@ -1660,6 +2598,22 @@ def _initialize_state() -> None:
         st.session_state["gui_output_browse_available"] = True
     if "gui_output_browse_message" not in st.session_state:
         st.session_state["gui_output_browse_message"] = None
+    if "gui_custom_format_browse_available" not in st.session_state:
+        st.session_state["gui_custom_format_browse_available"] = True
+    if "gui_custom_format_browse_message" not in st.session_state:
+        st.session_state["gui_custom_format_browse_message"] = None
+    if "gui_missing_label_detector_model_browse_available" not in st.session_state:
+        st.session_state["gui_missing_label_detector_model_browse_available"] = True
+    if "gui_missing_label_detector_model_browse_message" not in st.session_state:
+        st.session_state["gui_missing_label_detector_model_browse_message"] = None
+    if "gui_missing_label_hints_output_browse_available" not in st.session_state:
+        st.session_state["gui_missing_label_hints_output_browse_available"] = True
+    if "gui_missing_label_hints_output_browse_message" not in st.session_state:
+        st.session_state["gui_missing_label_hints_output_browse_message"] = None
+    if "gui_bbox_audit_output_browse_available" not in st.session_state:
+        st.session_state["gui_bbox_audit_output_browse_available"] = True
+    if "gui_bbox_audit_output_browse_message" not in st.session_state:
+        st.session_state["gui_bbox_audit_output_browse_message"] = None
     if "gui_input_validation_errors" not in st.session_state:
         st.session_state["gui_input_validation_errors"] = []
     if "gui_input_validated_path" not in st.session_state:
@@ -1684,6 +2638,117 @@ def _initialize_state() -> None:
         st.session_state["gui_last_persisted_input_dir"] = persisted_preferences["gui_last_persisted_input_dir"]
     if "gui_last_persisted_state_payload" not in st.session_state:
         st.session_state["gui_last_persisted_state_payload"] = persisted_preferences["gui_last_persisted_state_payload"]
+    if "gui_missing_label_detector_model_path" not in st.session_state:
+        st.session_state["gui_missing_label_detector_model_path"] = persisted_preferences[
+            "gui_missing_label_detector_model_path"
+        ]
+    if "gui_missing_label_hints_output_dir" not in st.session_state:
+        st.session_state["gui_missing_label_hints_output_dir"] = persisted_preferences[
+            "gui_missing_label_hints_output_dir"
+        ]
+    if "gui_missing_label_confidence_threshold" not in st.session_state:
+        st.session_state["gui_missing_label_confidence_threshold"] = persisted_preferences[
+            "gui_missing_label_confidence_threshold"
+        ]
+    if "gui_missing_label_iou_threshold" not in st.session_state:
+        st.session_state["gui_missing_label_iou_threshold"] = persisted_preferences[
+            "gui_missing_label_iou_threshold"
+        ]
+    if "gui_missing_label_max_detections_per_image" not in st.session_state:
+        st.session_state["gui_missing_label_max_detections_per_image"] = persisted_preferences[
+            "gui_missing_label_max_detections_per_image"
+        ]
+    if "gui_missing_label_review_index" not in st.session_state:
+        st.session_state["gui_missing_label_review_index"] = 0
+    if "gui_missing_label_result" not in st.session_state:
+        st.session_state["gui_missing_label_result"] = None
+    if "gui_missing_label_error" not in st.session_state:
+        st.session_state["gui_missing_label_error"] = None
+    if "gui_detector_review_result" not in st.session_state:
+        st.session_state["gui_detector_review_result"] = None
+    if "gui_detector_review_item_cache" not in st.session_state:
+        st.session_state["gui_detector_review_item_cache"] = {}
+    if "gui_detector_review_cache_signature" not in st.session_state:
+        st.session_state["gui_detector_review_cache_signature"] = ""
+    if "gui_detector_review_image_paths" not in st.session_state:
+        st.session_state["gui_detector_review_image_paths"] = []
+    if "gui_detector_review_image_paths_signature" not in st.session_state:
+        st.session_state["gui_detector_review_image_paths_signature"] = ""
+    if "gui_detector_review_generation_error" not in st.session_state:
+        st.session_state["gui_detector_review_generation_error"] = None
+    if "gui_detector_review_error" not in st.session_state:
+        st.session_state["gui_detector_review_error"] = None
+    if "gui_detector_review_review_index" not in st.session_state:
+        st.session_state["gui_detector_review_review_index"] = 0
+    if "gui_detector_review_source_signature" not in st.session_state:
+        st.session_state["gui_detector_review_source_signature"] = None
+    if "gui_detector_review_allow_overwrite_missing" not in st.session_state:
+        st.session_state["gui_detector_review_allow_overwrite_missing"] = False
+    if "gui_detector_review_apply_confirm" not in st.session_state:
+        st.session_state["gui_detector_review_apply_confirm"] = False
+    if "gui_detector_review_last_approval" not in st.session_state:
+        st.session_state["gui_detector_review_last_approval"] = None
+    if "gui_missing_label_source_signature" not in st.session_state:
+        st.session_state["gui_missing_label_source_signature"] = None
+    if "gui_missing_label_allow_overwrite" not in st.session_state:
+        st.session_state["gui_missing_label_allow_overwrite"] = False
+    if "gui_missing_label_apply_confirm" not in st.session_state:
+        st.session_state["gui_missing_label_apply_confirm"] = False
+    if "gui_missing_label_last_approval" not in st.session_state:
+        st.session_state["gui_missing_label_last_approval"] = None
+    if "gui_bbox_audit_output_dir" not in st.session_state:
+        st.session_state["gui_bbox_audit_output_dir"] = persisted_preferences[
+            "gui_bbox_audit_output_dir"
+        ]
+    if "gui_bbox_audit_match_iou_threshold" not in st.session_state:
+        st.session_state["gui_bbox_audit_match_iou_threshold"] = persisted_preferences[
+            "gui_bbox_audit_match_iou_threshold"
+        ]
+    if "gui_bbox_audit_correction_iou_threshold" not in st.session_state:
+        st.session_state["gui_bbox_audit_correction_iou_threshold"] = persisted_preferences[
+            "gui_bbox_audit_correction_iou_threshold"
+        ]
+    if "gui_bbox_audit_max_labeled_images" not in st.session_state:
+        st.session_state["gui_bbox_audit_max_labeled_images"] = persisted_preferences[
+            "gui_bbox_audit_max_labeled_images"
+        ]
+    if "gui_bbox_audit_review_index" not in st.session_state:
+        st.session_state["gui_bbox_audit_review_index"] = 0
+    if "gui_bbox_audit_result" not in st.session_state:
+        st.session_state["gui_bbox_audit_result"] = None
+    if "gui_bbox_audit_error" not in st.session_state:
+        st.session_state["gui_bbox_audit_error"] = None
+    if "gui_bbox_audit_source_signature" not in st.session_state:
+        st.session_state["gui_bbox_audit_source_signature"] = None
+    if "gui_bbox_audit_apply_confirm" not in st.session_state:
+        st.session_state["gui_bbox_audit_apply_confirm"] = False
+    if "gui_bbox_audit_last_approval" not in st.session_state:
+        st.session_state["gui_bbox_audit_last_approval"] = None
+
+    if "gui_classification_config_path" not in st.session_state:
+        st.session_state["gui_classification_config_path"] = persisted_preferences[
+            "gui_classification_config_path"
+        ]
+    if "gui_classification_advance_on_label" not in st.session_state:
+        st.session_state["gui_classification_advance_on_label"] = persisted_preferences[
+            "gui_classification_advance_on_label"
+        ]
+    if "gui_classification_show_bboxes" not in st.session_state:
+        st.session_state["gui_classification_show_bboxes"] = persisted_preferences[
+            "gui_classification_show_bboxes"
+        ]
+    if "gui_classification_index" not in st.session_state:
+        st.session_state["gui_classification_index"] = 0
+    if "gui_classification_keyboard_event_nonce" not in st.session_state:
+        st.session_state["gui_classification_keyboard_event_nonce"] = 0
+    if "gui_classification_image_paths" not in st.session_state:
+        st.session_state["gui_classification_image_paths"] = []
+    if "gui_classification_image_paths_signature" not in st.session_state:
+        st.session_state["gui_classification_image_paths_signature"] = ""
+    if "gui_classification_last_saved" not in st.session_state:
+        st.session_state["gui_classification_last_saved"] = None
+    if "gui_classification_error" not in st.session_state:
+        st.session_state["gui_classification_error"] = None
 
     if _coerce_text(st.session_state.get("gui_run_status")) == "running":
         reset_gui_run_state(
@@ -1713,8 +2778,10 @@ def render() -> None:
         "1. Dataset",
         "2. Format & Preview",
         "3. Output",
-        "4. Label Mapping",
-        "5. Review & Run",
+        "4. Detector Review",
+        "5. Label Mapping",
+        "6. Review & Run",
+        "7. Classification",
     ])
 
     with tabs[0]:
@@ -1791,6 +2858,91 @@ def render() -> None:
         input_dir_raw = _coerce_text(st.session_state["gui_input_dir"])
         input_path = Path(input_dir_raw).expanduser() if input_dir_raw else Path(".")
         skip_preview_refresh = _consume_preview_skip_once(st.session_state)
+        source_format_value = _coerce_text(st.session_state.get("gui_src"))
+        custom_format_options: list[CustomFormatOption] = []
+        custom_format_error: str | None = None
+        custom_format_path_error: str | None = None
+        selected_custom_format_id: str | None = None
+        selected_custom_format: CustomFormatOption | None = None
+        selected_custom_format_path: Path | None = None
+
+        if source_format_value == "custom":
+            if input_dir_raw and input_path.exists() and input_path.is_dir():
+                try:
+                    custom_format_options = _custom_format_options(input_path)
+                except Exception as exc:
+                    custom_format_error = str(exc)
+
+            if custom_format_error:
+                st.error(f"Unable to load custom format YAMLs: {custom_format_error}")
+            elif not input_dir_raw or not input_path.exists() or not input_path.is_dir():
+                st.caption("Set a valid input directory to load custom format YAML choices.")
+            elif not custom_format_options:
+                st.warning(
+                    "No custom format YAMLs found in the supported default locations. "
+                    "You can place one at the dataset root as custom_format.yaml, data_format.yaml, "
+                    "or label_format.yaml, keep one under format_specs, or browse to a YAML file below."
+                )
+                explicit_cols = st.columns([4, 1], gap="small")
+                with explicit_cols[0]:
+                    st.text_input(
+                        "Custom format YAML path",
+                        key="gui_custom_format_path",
+                        placeholder="/path/to/custom_format.yaml",
+                    )
+                with explicit_cols[1]:
+                    st.button(
+                        "Browse...",
+                        key="gui_custom_format_path_browse",
+                        on_click=_on_browse_custom_format_file,
+                    )
+
+                custom_browse_message = st.session_state.get("gui_custom_format_browse_message")
+                if isinstance(custom_browse_message, str) and custom_browse_message:
+                    if bool(st.session_state.get("gui_custom_format_browse_available", True)):
+                        st.info(custom_browse_message)
+                    else:
+                        st.warning(custom_browse_message)
+
+                selected_custom_format, custom_format_path_error = _explicit_custom_format_option(
+                    _coerce_text(st.session_state.get("gui_custom_format_path"))
+                )
+                if custom_format_path_error:
+                    st.warning(custom_format_path_error)
+                elif selected_custom_format is not None:
+                    selected_custom_format_id = selected_custom_format.format_id
+                    selected_custom_format_path = selected_custom_format.path
+                    st.caption(f"Selected YAML: {selected_custom_format.path}")
+                    if selected_custom_format.description:
+                        st.caption(selected_custom_format.description)
+                    st.caption(
+                        "The selected YAML is used for preview and conversion while Source format is `custom`."
+                    )
+            else:
+                option_ids = [option.format_id for option in custom_format_options]
+                option_map = {option.format_id: option for option in custom_format_options}
+                current_custom_format_id = _coerce_text(st.session_state.get("gui_custom_format_id")) or None
+                if current_custom_format_id not in option_map:
+                    st.session_state["gui_custom_format_id"] = (
+                        _default_custom_format_id(input_path, options=custom_format_options) or option_ids[0]
+                    )
+                st.selectbox(
+                    "Custom format YAML",
+                    options=option_ids,
+                    key="gui_custom_format_id",
+                    format_func=lambda format_id: _format_custom_format_option(option_map[format_id]),
+                )
+                selected_custom_format_id = _coerce_text(st.session_state.get("gui_custom_format_id")) or None
+                selected_custom_format = _selected_custom_format_option(
+                    custom_format_options,
+                    selected_custom_format_id,
+                )
+                if selected_custom_format is not None:
+                    selected_custom_format_path = selected_custom_format.path
+                    st.caption(f"Selected YAML: {selected_custom_format.path}")
+                    if selected_custom_format.description:
+                        st.caption(selected_custom_format.description)
+                    st.caption("The selected YAML is used for preview and conversion while Source format is `custom`.")
 
         if infer_requested:
             try:
@@ -1821,15 +2973,27 @@ def render() -> None:
             _coerce_text(st.session_state["gui_src"]),
             inferred_format,
         )
+        preview_custom_format_id = selected_custom_format_id if source_format_value == "custom" else None
+        preview_custom_format_path = selected_custom_format_path if source_format_value == "custom" else None
+        custom_preview_blocker: str | None = None
+        if source_format_value == "custom":
+            if custom_format_error:
+                custom_preview_blocker = f"Unable to load custom format YAMLs: {custom_format_error}"
+            elif input_dir_raw and input_path.exists() and input_path.is_dir() and not custom_format_options:
+                custom_preview_blocker = custom_format_path_error or (
+                    "No custom format YAML found. Browse to a YAML file or enter a path manually."
+                )
+            elif input_dir_raw and input_path.exists() and input_path.is_dir() and preview_custom_format_id is None:
+                custom_preview_blocker = "Choose a custom format YAML to preview this dataset."
         input_path_include_substring = normalize_input_path_filter_substring(
             _coerce_text(st.session_state.get("gui_input_path_include_substring"))
         )
         input_path_exclude_substring = normalize_input_path_filter_substring(
             _coerce_text(st.session_state.get("gui_input_path_exclude_substring"))
         )
-        correct_out_of_frame_bboxes = bool(
-            st.session_state.get("gui_correct_out_of_frame_bboxes", DEFAULT_CORRECT_OUT_OF_FRAME_BBOXES)
-        )
+        out_of_frame_bbox_policy = _coerce_text(
+            st.session_state.get("gui_out_of_frame_bbox_policy", DEFAULT_OUT_OF_FRAME_BBOX_POLICY)
+        ) or DEFAULT_OUT_OF_FRAME_BBOX_POLICY
         out_of_frame_tolerance_px = max(
             0.0,
             _coerce_float(
@@ -1852,6 +3016,11 @@ def render() -> None:
         if preview_scan_limit > 0:
             st.caption(
                 f"Preview scan limit is active: Step 2 scans up to `{preview_scan_limit}` samples for preview."
+            )
+        elif source_format_value == "custom":
+            st.warning(
+                "Preview scan limit is `0`, so Step 2 will scan the full custom dataset. "
+                "Large BDD100K datasets can take a while; set a non-zero limit for a faster preview."
             )
         preview_vm = None
         if skip_preview_refresh:
@@ -1876,16 +3045,26 @@ def render() -> None:
                 previous_disabled=True,
                 next_disabled=True,
             )
+        elif preview_source_format == "custom" and source_format_value == "custom" and custom_preview_blocker:
+            _store_class_labels({})
+            st.warning(custom_preview_blocker)
+            _preview_keyboard_navigation_action(
+                enabled=False,
+                previous_disabled=True,
+                next_disabled=True,
+            )
         else:
             try:
                 preview_vm = preview_dataset_view(
                     input_path,
                     source_format=preview_source_format,
-                    correct_out_of_frame_bboxes=correct_out_of_frame_bboxes,
+                    out_of_frame_bbox_policy=out_of_frame_bbox_policy,
                     out_of_frame_tolerance_px=out_of_frame_tolerance_px,
                     input_path_include_substring=input_path_include_substring,
                     input_path_exclude_substring=input_path_exclude_substring,
                     preview_scan_limit=preview_scan_limit,
+                    custom_format_id=preview_custom_format_id,
+                    custom_format_path=preview_custom_format_path,
                 )
             except Exception as exc:
                 st.error(f"Unable to load preview dataset: {exc}")
@@ -1899,6 +3078,8 @@ def render() -> None:
             if preview_vm:
                 preview_key = (
                     f"{input_path.resolve()}::{preview_source_format}::"
+                    f"{preview_custom_format_id or ''}::"
+                    f"{preview_custom_format_path or ''}::"
                     f"{input_path_include_substring or ''}::{input_path_exclude_substring or ''}"
                     f"::{preview_scan_limit}"
                 )
@@ -2047,6 +3228,8 @@ def render() -> None:
             preview_source_format,
             dataset_root=input_path if input_path.exists() and input_path.is_dir() else None,
             inference_payload=inference_payload if isinstance(inference_payload, dict) else None,
+            custom_format_id=preview_custom_format_id,
+            custom_format_path=preview_custom_format_path,
         )
         if format_details:
             with st.expander("Format details (YAML)", expanded=False):
@@ -2136,9 +3319,16 @@ def render() -> None:
                 "Extra stem affix preview: "
                 f"`{output_file_stem_prefix_preview}example{output_file_stem_suffix_preview}.jpg`"
             )
-        st.checkbox(
-            "Correct out-of-frame bboxes",
-            key="gui_correct_out_of_frame_bboxes",
+        st.selectbox(
+            "Out-of-frame bbox policy",
+            [p.value for p in OutOfFrameBBoxPolicy],
+            key="gui_out_of_frame_bbox_policy",
+            format_func=lambda v: {
+                "correct": "Correct (clip to image bounds)",
+                "warn": "Warn (clip + emit warning)",
+                "ignore": "Ignore (keep as-is)",
+                "drop": "Drop (remove annotation)",
+            }.get(v, v),
         )
         st.number_input(
             "Out-of-frame correction tolerance (px)",
@@ -2146,20 +3336,24 @@ def render() -> None:
             min_value=0.0,
             step=1.0,
             format="%.0f",
-            disabled=not bool(
-                st.session_state.get("gui_correct_out_of_frame_bboxes", DEFAULT_CORRECT_OUT_OF_FRAME_BBOXES)
-            ),
+            disabled=_coerce_text(
+                st.session_state.get("gui_out_of_frame_bbox_policy", DEFAULT_OUT_OF_FRAME_BBOX_POLICY)
+            ) not in {"correct", "warn"},
         )
-        if bool(st.session_state.get("gui_correct_out_of_frame_bboxes", DEFAULT_CORRECT_OUT_OF_FRAME_BBOXES)):
+        if _coerce_text(st.session_state.get("gui_out_of_frame_bbox_policy", DEFAULT_OUT_OF_FRAME_BBOX_POLICY)) in {"correct", "warn"}:
             tolerance_preview = _coerce_out_of_frame_tolerance_px(
                 st.session_state.get("gui_out_of_frame_tolerance_px"),
-                correct_out_of_frame_bboxes=True,
+                out_of_frame_bbox_policy=_coerce_text(
+                    st.session_state.get("gui_out_of_frame_bbox_policy", DEFAULT_OUT_OF_FRAME_BBOX_POLICY)
+                ) or DEFAULT_OUT_OF_FRAME_BBOX_POLICY,
             )
             st.caption(
                 f"Near-edge boxes are clipped to image bounds when they exceed the frame by at most `{tolerance_preview:g}` px."
             )
+        elif _coerce_text(st.session_state.get("gui_out_of_frame_bbox_policy", DEFAULT_OUT_OF_FRAME_BBOX_POLICY)) == "drop":
+            st.caption("Out-of-frame boxes are dropped.")
         else:
-            st.caption("Out-of-frame boxes remain invalid when automatic correction is disabled.")
+            st.caption("Out-of-frame boxes are kept as-is (no clipping or error).")
 
         st.number_input(
             "Drop images whose longest edge is smaller than (px)",
@@ -2188,8 +3382,639 @@ def render() -> None:
             "Too-big images can be dropped or downscaled."
         )
 
+    missing_label_signature = None
+    if preview_source_format == "yolo" and input_dir_raw and input_path.exists() and input_path.is_dir():
+        missing_label_signature = (
+            f"{input_path.resolve()}::{input_path_include_substring or ''}::{input_path_exclude_substring or ''}"
+        )
+    if st.session_state.get("gui_missing_label_source_signature") != missing_label_signature:
+        st.session_state["gui_missing_label_result"] = None
+        st.session_state["gui_missing_label_error"] = None
+        st.session_state["gui_detector_review_generation_error"] = None
+        st.session_state["gui_missing_label_review_index"] = 0
+        st.session_state["gui_missing_label_last_approval"] = None
+        st.session_state["gui_missing_label_apply_confirm"] = False
+        st.session_state["gui_missing_label_source_signature"] = missing_label_signature
+
+    bbox_audit_signature = missing_label_signature
+    if st.session_state.get("gui_bbox_audit_source_signature") != bbox_audit_signature:
+        st.session_state["gui_bbox_audit_result"] = None
+        st.session_state["gui_bbox_audit_error"] = None
+        st.session_state["gui_bbox_audit_review_index"] = 0
+        st.session_state["gui_bbox_audit_last_approval"] = None
+        st.session_state["gui_bbox_audit_apply_confirm"] = False
+        st.session_state["gui_bbox_audit_source_signature"] = bbox_audit_signature
+
+    detector_review_signature = missing_label_signature
+    if st.session_state.get("gui_detector_review_source_signature") != detector_review_signature:
+        st.session_state["gui_detector_review_result"] = None
+        st.session_state["gui_detector_review_item_cache"] = {}
+        st.session_state["gui_detector_review_cache_signature"] = ""
+        st.session_state["gui_detector_review_image_paths"] = []
+        st.session_state["gui_detector_review_image_paths_signature"] = ""
+        st.session_state["gui_detector_review_error"] = None
+        st.session_state["gui_detector_review_generation_error"] = None
+        st.session_state["gui_detector_review_review_index"] = 0
+        st.session_state["gui_detector_review_last_approval"] = None
+        st.session_state["gui_detector_review_apply_confirm"] = False
+        st.session_state["gui_detector_review_allow_overwrite_missing"] = False
+        st.session_state["gui_detector_review_source_signature"] = detector_review_signature
+
     with tabs[3]:
-        st.subheader("Step 4: Label Mapping")
+        st.subheader("Step 4: BBox Review")
+        st.caption(
+            "Run detector-assisted review after previewing the dataset and choosing output-related staging locations."
+        )
+
+        if missing_label_signature is None:
+            st.info("Detector review is currently available for YOLO input datasets after Step 2 preview is ready.")
+        else:
+            detector_review_generation_error = st.session_state.get("gui_detector_review_generation_error")
+            if isinstance(detector_review_generation_error, str) and detector_review_generation_error:
+                st.error(detector_review_generation_error)
+
+            st.subheader("YOLO BBox Review")
+            st.caption(
+                "Configure one shared detector pass, then review missing-box additions and existing-box edits in one combined list."
+            )
+
+            detector_cols = st.columns([4, 1], gap="small")
+            with detector_cols[0]:
+                st.text_input(
+                    "Detector model path",
+                    key="gui_missing_label_detector_model_path",
+                    placeholder="/path/to/model.pt",
+                )
+            with detector_cols[1]:
+                st.button(
+                    "Browse...",
+                    key="gui_missing_label_detector_model_path_browse",
+                    on_click=_on_browse_missing_label_detector_model_path,
+                )
+
+            detector_model_browse_message = st.session_state.get(
+                "gui_missing_label_detector_model_browse_message"
+            )
+            if isinstance(detector_model_browse_message, str) and detector_model_browse_message:
+                if bool(st.session_state.get("gui_missing_label_detector_model_browse_available", True)):
+                    st.info(detector_model_browse_message)
+                else:
+                    st.warning(detector_model_browse_message)
+
+            default_hints_output_dir = _default_missing_label_hints_output_dir(
+                _coerce_text(st.session_state.get("gui_output_dir"))
+            )
+            hints_output_cols = st.columns([4, 1], gap="small")
+            with hints_output_cols[0]:
+                st.text_input(
+                    "Hints staging directory",
+                    key="gui_missing_label_hints_output_dir",
+                    placeholder=str(default_hints_output_dir),
+                )
+            with hints_output_cols[1]:
+                st.button(
+                    "Browse...",
+                    key="gui_missing_label_hints_output_dir_browse",
+                    on_click=_on_browse_missing_label_hints_output_dir,
+                )
+
+            hints_output_browse_message = st.session_state.get("gui_missing_label_hints_output_browse_message")
+            if isinstance(hints_output_browse_message, str) and hints_output_browse_message:
+                if bool(st.session_state.get("gui_missing_label_hints_output_browse_available", True)):
+                    st.info(hints_output_browse_message)
+                else:
+                    st.warning(hints_output_browse_message)
+
+            st.caption(
+                "Missing-label proposals are staged outside the dataset first. Blank uses "
+                f"`{default_hints_output_dir}`."
+            )
+
+            detector_settings = st.columns(3, gap="small")
+            with detector_settings[0]:
+                st.number_input(
+                    "Confidence threshold",
+                    min_value=0.0,
+                    max_value=1.0,
+                    step=0.05,
+                    format="%.2f",
+                    key="gui_missing_label_confidence_threshold",
+                )
+            with detector_settings[1]:
+                st.number_input(
+                    "IoU threshold",
+                    min_value=0.0,
+                    max_value=1.0,
+                    step=0.05,
+                    format="%.2f",
+                    key="gui_missing_label_iou_threshold",
+                )
+            with detector_settings[2]:
+                st.number_input(
+                    "Max detections per image",
+                    min_value=1,
+                    max_value=5000,
+                    step=25,
+                    key="gui_missing_label_max_detections_per_image",
+                )
+
+            default_bbox_audit_output_dir = _default_bbox_audit_output_dir(
+                _coerce_text(st.session_state.get("gui_output_dir"))
+            )
+            bbox_audit_cols = st.columns([4, 1], gap="small")
+            with bbox_audit_cols[0]:
+                st.text_input(
+                    "Audit report directory",
+                    key="gui_bbox_audit_output_dir",
+                    placeholder=str(default_bbox_audit_output_dir),
+                )
+            with bbox_audit_cols[1]:
+                st.button(
+                    "Browse...",
+                    key="gui_bbox_audit_output_dir_browse",
+                    on_click=_on_browse_bbox_audit_output_dir,
+                )
+
+            bbox_audit_output_browse_message = st.session_state.get("gui_bbox_audit_output_browse_message")
+            if isinstance(bbox_audit_output_browse_message, str) and bbox_audit_output_browse_message:
+                if bool(st.session_state.get("gui_bbox_audit_output_browse_available", True)):
+                    st.info(bbox_audit_output_browse_message)
+                else:
+                    st.warning(bbox_audit_output_browse_message)
+
+            bbox_audit_settings = st.columns(3, gap="small")
+            with bbox_audit_settings[0]:
+                st.number_input(
+                    "Max images to review",
+                    min_value=1,
+                    max_value=1_000_000,
+                    step=25,
+                    key="gui_bbox_audit_max_labeled_images",
+                )
+            with bbox_audit_settings[1]:
+                st.number_input(
+                    "Match IoU threshold",
+                    min_value=0.0,
+                    max_value=1.0,
+                    step=0.05,
+                    format="%.2f",
+                    key="gui_bbox_audit_match_iou_threshold",
+                )
+            with bbox_audit_settings[2]:
+                st.number_input(
+                    "Adjust bbox when matched IoU is below",
+                    min_value=0.0,
+                    max_value=1.0,
+                    step=0.05,
+                    format="%.2f",
+                    key="gui_bbox_audit_correction_iou_threshold",
+                )
+
+            detector_model_path_text = _coerce_text(
+                st.session_state.get("gui_missing_label_detector_model_path")
+            )
+            review_queue_signature = (
+                f"{input_path.resolve()}::{input_path_include_substring or ''}::"
+                f"{input_path_exclude_substring or ''}::"
+                f"{max(1, int(st.session_state.get('gui_bbox_audit_max_labeled_images', 100)))}"
+            )
+            if st.session_state.get("gui_detector_review_image_paths_signature") != review_queue_signature:
+                try:
+                    review_image_paths = list_detector_review_image_paths_view(
+                        input_path=input_path,
+                        source_format="yolo",
+                        input_path_include_substring=input_path_include_substring,
+                        input_path_exclude_substring=input_path_exclude_substring,
+                    )
+                    max_review_images = max(
+                        1,
+                        int(st.session_state.get("gui_bbox_audit_max_labeled_images", 100)),
+                    )
+                    st.session_state["gui_detector_review_image_paths"] = review_image_paths[:max_review_images]
+                    st.session_state["gui_detector_review_image_paths_signature"] = review_queue_signature
+                    st.session_state["gui_detector_review_review_index"] = 0
+                    st.session_state["gui_detector_review_generation_error"] = None
+                except Exception as exc:
+                    st.session_state["gui_detector_review_image_paths"] = []
+                    st.session_state["gui_detector_review_image_paths_signature"] = review_queue_signature
+                    st.session_state["gui_detector_review_generation_error"] = str(exc)
+
+            detector_review_cache_signature = json.dumps(
+                {
+                    "model_path": detector_model_path_text,
+                    "confidence_threshold": float(
+                        st.session_state.get("gui_missing_label_confidence_threshold", 0.25)
+                    ),
+                    "iou_threshold": float(st.session_state.get("gui_missing_label_iou_threshold", 0.45)),
+                    "max_detections_per_image": max(
+                        1,
+                        int(st.session_state.get("gui_missing_label_max_detections_per_image", 200)),
+                    ),
+                    "match_iou_threshold": float(
+                        st.session_state.get("gui_bbox_audit_match_iou_threshold", 0.30)
+                    ),
+                    "correction_iou_threshold": float(
+                        st.session_state.get("gui_bbox_audit_correction_iou_threshold", 0.85)
+                    ),
+                },
+                sort_keys=True,
+            )
+            if st.session_state.get("gui_detector_review_cache_signature") != detector_review_cache_signature:
+                st.session_state["gui_detector_review_item_cache"] = {}
+                st.session_state["gui_detector_review_cache_signature"] = detector_review_cache_signature
+                st.session_state["gui_detector_review_error"] = None
+
+            detector_review_error = st.session_state.get("gui_detector_review_error")
+            if isinstance(detector_review_error, str) and detector_review_error:
+                st.error(detector_review_error)
+
+            review_image_paths = list(st.session_state.get("gui_detector_review_image_paths", []))
+            if not review_image_paths:
+                st.info(
+                    "No detector review images are available for the current input path and filters."
+                )
+            else:
+                max_review_index = len(review_image_paths) - 1
+                current_review_index = min(
+                    max(int(st.session_state.get("gui_detector_review_review_index", 0)), 0),
+                    max_review_index,
+                )
+                st.session_state["gui_detector_review_review_index"] = current_review_index
+                current_image_rel_path = review_image_paths[current_review_index]
+
+                nav_cols = st.columns([1, 2, 2, 1], gap="small")
+                with nav_cols[0]:
+                    back_clicked = st.button(
+                        "Back",
+                        disabled=current_review_index == 0,
+                        key="gui_detector_review_back",
+                    )
+                with nav_cols[1]:
+                    rerun_current_clicked = st.button(
+                        "Re-run current image inference",
+                        key="gui_detector_review_rerun_current",
+                        width="stretch",
+                    )
+                with nav_cols[2]:
+                    st.markdown(
+                        f"**Image {current_review_index + 1} / {len(review_image_paths)}**  \n"
+                        f"{current_image_rel_path}"
+                    )
+                with nav_cols[3]:
+                    next_clicked = st.button(
+                        "Next",
+                        disabled=current_review_index >= max_review_index,
+                        key="gui_detector_review_next",
+                    )
+
+                if back_clicked:
+                    st.session_state["gui_detector_review_review_index"] = max(0, current_review_index - 1)
+                    st.rerun()
+                if next_clicked:
+                    st.session_state["gui_detector_review_review_index"] = min(
+                        max_review_index,
+                        current_review_index + 1,
+                    )
+                    st.rerun()
+
+                review_item_cache = dict(st.session_state.get("gui_detector_review_item_cache", {}))
+                if rerun_current_clicked:
+                    review_item_cache.pop(current_image_rel_path, None)
+                    st.session_state["gui_detector_review_item_cache"] = review_item_cache
+
+                current_review_item = review_item_cache.get(current_image_rel_path)
+                if current_review_item is None:
+                    if not detector_model_path_text:
+                        st.info("Provide a detector model path to run inference for the current image.")
+                    else:
+                        try:
+                            with st.spinner("Running detector for the current image..."):
+                                current_review_item = generate_detector_review_item_view(
+                                    input_path=input_path,
+                                    source_format="yolo",
+                                    image_rel_path=current_image_rel_path,
+                                    detector_model_path=Path(detector_model_path_text).expanduser(),
+                                    confidence_threshold=float(
+                                        st.session_state.get("gui_missing_label_confidence_threshold", 0.25)
+                                    ),
+                                    iou_threshold=float(
+                                        st.session_state.get("gui_missing_label_iou_threshold", 0.45)
+                                    ),
+                                    max_detections_per_image=max(
+                                        1,
+                                        int(
+                                            st.session_state.get(
+                                                "gui_missing_label_max_detections_per_image",
+                                                200,
+                                            )
+                                        ),
+                                    ),
+                                    match_iou_threshold=float(
+                                        st.session_state.get("gui_bbox_audit_match_iou_threshold", 0.30)
+                                    ),
+                                    correction_iou_threshold=float(
+                                        st.session_state.get("gui_bbox_audit_correction_iou_threshold", 0.85)
+                                    ),
+                                )
+                            review_item_cache[current_image_rel_path] = current_review_item
+                            st.session_state["gui_detector_review_item_cache"] = review_item_cache
+                            st.session_state["gui_detector_review_error"] = None
+                        except Exception as exc:
+                            st.session_state["gui_detector_review_error"] = str(exc)
+                            current_review_item = None
+
+                queue_metrics = st.columns(4)
+                queue_metrics[0].metric("Images in queue", len(review_image_paths))
+                queue_metrics[1].metric("Current position", current_review_index + 1)
+                queue_metrics[2].metric(
+                    "Current proposals",
+                    len(current_review_item.proposals) if current_review_item is not None else 0,
+                )
+                queue_metrics[3].metric(
+                    "Mode",
+                    (
+                        "create label"
+                        if current_review_item is not None and current_review_item.source_kind == "missing_label"
+                        else "edit label"
+                    )
+                    if current_review_item is not None
+                    else "pending",
+                )
+
+                if current_review_item is not None:
+                    review_cols = st.columns([3, 2], gap="small")
+                    with review_cols[1]:
+                        if current_review_item.source_kind == "missing_label":
+                            st.caption(f"Will create label file: {current_review_item.label_rel_path}")
+                            st.caption("Existing labels: 0")
+                        else:
+                            st.caption(f"Label file: {current_review_item.label_rel_path}")
+                            st.caption(f"Existing labels: {current_review_item.existing_label_count}")
+
+                        bbox_strategy = "detector"
+                        has_adjustable_proposals = any(
+                            proposal.action == "adjust"
+                            and proposal.existing_bbox_xywh_normalized is not None
+                            and proposal.proposed_bbox_xywh_normalized is not None
+                            for proposal in current_review_item.proposals
+                        )
+                        if has_adjustable_proposals:
+                            bbox_strategy = st.radio(
+                                "Adjust proposal bbox choice",
+                                options=["detector", "smallest", "closest_bounds"],
+                                format_func=lambda value: {
+                                    "detector": "Use detector box",
+                                    "smallest": "Take smallest box",
+                                    "closest_bounds": "Take closest bounds",
+                                }[value],
+                                key=_detector_review_key(
+                                    "bbox_strategy",
+                                    current_review_item.label_rel_path,
+                                ),
+                            )
+                            st.caption(
+                                "These options apply to adjust proposals only. Add proposals keep the detector box, and remove proposals keep the current annotation visible."
+                            )
+
+                        selected_proposals: list[BBoxAuditProposalViewModel] = []
+                        proposal_rows: list[dict[str, str]] = []
+                        for proposal_index, proposal in enumerate(current_review_item.proposals):
+                            apply_proposal = st.checkbox(
+                                (
+                                    f"Apply {proposal.action} proposal {proposal_index + 1}: "
+                                    f"{proposal.class_id}:{proposal.class_name}"
+                                ),
+                                key=_detector_review_key(
+                                    "proposal",
+                                    current_review_item.label_rel_path,
+                                    proposal_index=proposal_index,
+                                ),
+                                value=True,
+                            )
+                            existing_bbox = proposal.existing_bbox_xywh_normalized
+                            proposed_bbox = proposal.proposed_bbox_xywh_normalized
+                            final_bbox = detector_review_final_bbox_xywh_normalized(
+                                proposal,
+                                strategy=bbox_strategy,
+                            )
+                            proposal_rows.append(
+                                {
+                                    "apply": "yes" if apply_proposal else "no",
+                                    "action": proposal.action,
+                                    "class_id": str(proposal.class_id),
+                                    "class_name": proposal.class_name,
+                                    "confidence": (
+                                        f"{proposal.confidence:.2f}" if proposal.confidence is not None else ""
+                                    ),
+                                    "match_iou": (
+                                        f"{proposal.match_iou:.2f}" if proposal.match_iou is not None else ""
+                                    ),
+                                    "annotation_bbox": _format_bbox_text(existing_bbox),
+                                    "detector_bbox": _format_bbox_text(proposed_bbox),
+                                    "final_bbox": (
+                                        _format_bbox_text(final_bbox)
+                                        if final_bbox is not None
+                                        else "removed"
+                                    ),
+                                }
+                            )
+                            if apply_proposal:
+                                selected_proposals.append(proposal)
+
+                        effective_selected_proposals = apply_detector_review_bbox_strategy(
+                            selected_proposals,
+                            strategy=bbox_strategy,
+                        )
+                        editor_state_view = build_detector_review_editor_state_view(
+                            dataset_root=input_path,
+                            review_item=current_review_item,
+                            selected_proposals=selected_proposals,
+                            strategy=bbox_strategy,
+                        )
+                        editor_class_name_map = {
+                            option.class_id: option.class_name for option in editor_state_view.class_options
+                        }
+                        editor_signature = json.dumps(
+                            {
+                                "image_rel_path": current_review_item.image_rel_path,
+                                "label_rel_path": current_review_item.label_rel_path,
+                                "source_kind": current_review_item.source_kind,
+                                "bbox_strategy": bbox_strategy,
+                                "editable_boxes": [
+                                    _editor_box_to_dict(box) for box in editor_state_view.editable_boxes
+                                ],
+                                "selected_proposals": [
+                                    {
+                                        "proposal_id": proposal.proposal_id,
+                                        "action": proposal.action,
+                                        "class_id": proposal.class_id,
+                                        "bbox": proposal.proposed_bbox_xywh_normalized,
+                                        "existing_index": proposal.existing_label_index,
+                                    }
+                                    for proposal in effective_selected_proposals
+                                ],
+                            },
+                            sort_keys=True,
+                        )
+                        editor_signature_key = _detector_review_key(
+                            "editor_signature",
+                            current_review_item.label_rel_path,
+                        )
+                        editor_boxes_key = _detector_review_key(
+                            "editor_boxes",
+                            current_review_item.label_rel_path,
+                        )
+                        if st.session_state.get(editor_signature_key) != editor_signature:
+                            st.session_state[editor_signature_key] = editor_signature
+                            st.session_state[editor_boxes_key] = [
+                                _editor_box_to_dict(box) for box in editor_state_view.editable_boxes
+                            ]
+
+                        edited_boxes = _coerce_editor_boxes(
+                            st.session_state.get(editor_boxes_key, []),
+                            class_name_map=editor_class_name_map,
+                        )
+                        edited_box_rows = [
+                            {
+                                "class_id": str(box.class_id),
+                                "class_name": box.class_name,
+                                "source": box.source,
+                                "final_bbox": _format_bbox_text(box.bbox_xywh_normalized),
+                            }
+                            for box in edited_boxes
+                        ]
+
+                        if proposal_rows:
+                            st.caption(
+                                f"Selected {len(selected_proposals)} of {len(current_review_item.proposals)} proposal(s) for this image."
+                            )
+                            if len(effective_selected_proposals) != len(selected_proposals):
+                                st.caption(
+                                    f"BBox choice leaves {len(effective_selected_proposals)} effective proposal(s) after dropping no-op adjust edits."
+                                )
+                            st.dataframe(
+                                proposal_rows,
+                                width="stretch",
+                                hide_index=True,
+                                height=min(360, max(160, 38 * (len(proposal_rows) + 1))),
+                            )
+                        else:
+                            st.info("No detector proposals were generated for this image.")
+
+                        st.caption(f"Final boxes currently in editor: {len(edited_boxes)}")
+                        if edited_box_rows:
+                            st.dataframe(
+                                edited_box_rows,
+                                width="stretch",
+                                hide_index=True,
+                                height=min(280, max(120, 38 * (len(edited_box_rows) + 1))),
+                            )
+                        else:
+                            st.info(
+                                "The editor currently has no final boxes. Use Draw to add a box, or accept to write an empty label file."
+                            )
+
+                        st.checkbox(
+                            "Allow overwriting label files for reviewed missing-label items",
+                            key="gui_detector_review_allow_overwrite_missing",
+                        )
+                        accept_and_next_requested = st.button(
+                            "Accept and go to next",
+                            key="gui_detector_review_accept_next",
+                            width="stretch",
+                        )
+
+                    with review_cols[0]:
+                        editor_image_payload, editor_image_warnings = load_bbox_editor_image_payload(
+                            dataset_root=input_path,
+                            image_rel_path=current_review_item.image_rel_path,
+                        )
+                        if editor_image_payload is None:
+                            for warning in editor_image_warnings:
+                                st.warning(warning)
+                        else:
+                            st.caption(
+                                "BBox editor: drag green boxes, use corner handles to resize, switch to Draw to create new boxes, and use the class dropdown for the selected box or the next box you draw."
+                            )
+                            editor_value = _BBOX_EDITOR_COMPONENT(
+                                image_data_url=editor_image_payload.image_data_url,
+                                original_width=editor_image_payload.original_width,
+                                original_height=editor_image_payload.original_height,
+                                display_width=editor_image_payload.display_width,
+                                display_height=editor_image_payload.display_height,
+                                annotation_boxes=[
+                                    _editor_box_to_dict(box) for box in editor_state_view.annotation_boxes
+                                ],
+                                detector_boxes=[
+                                    _editor_box_to_dict(box) for box in editor_state_view.detector_boxes
+                                ],
+                                editable_boxes=[
+                                    _editor_box_to_dict(box) for box in edited_boxes
+                                ],
+                                class_options=[
+                                    {
+                                        "class_id": option.class_id,
+                                        "class_name": option.class_name,
+                                    }
+                                    for option in editor_state_view.class_options
+                                ],
+                                show_annotations=True,
+                                show_detectors=True,
+                                key=_detector_review_key(
+                                    "bbox_editor",
+                                    current_review_item.label_rel_path,
+                                ),
+                            )
+                            if isinstance(editor_value, dict) and "boxes" in editor_value:
+                                updated_boxes = _coerce_editor_boxes(
+                                    editor_value.get("boxes"),
+                                    class_name_map=editor_class_name_map,
+                                )
+                                st.session_state[editor_boxes_key] = [
+                                    _editor_box_to_dict(box) for box in updated_boxes
+                                ]
+
+                    if accept_and_next_requested:
+                        try:
+                            approval_vm = approve_detector_review_edited_boxes_view(
+                                dataset_root=input_path,
+                                review_item=current_review_item,
+                                edited_boxes=edited_boxes,
+                                allow_overwrite_missing_label_files=bool(
+                                    st.session_state.get("gui_detector_review_allow_overwrite_missing")
+                                ),
+                            )
+                            st.session_state["gui_detector_review_last_approval"] = approval_vm
+                            st.session_state.pop(editor_signature_key, None)
+                            st.session_state.pop(editor_boxes_key, None)
+                            review_item_cache.pop(current_image_rel_path, None)
+                            st.session_state["gui_detector_review_item_cache"] = review_item_cache
+                            st.session_state["gui_detector_review_error"] = None
+                            if current_review_index < max_review_index:
+                                st.session_state["gui_detector_review_review_index"] = current_review_index + 1
+                            st.rerun()
+                        except Exception as exc:
+                            st.session_state["gui_detector_review_error"] = str(exc)
+
+                    last_approval = st.session_state.get("gui_detector_review_last_approval")
+                    if last_approval is not None:
+                        st.success(
+                            "Approved "
+                            f"{getattr(last_approval, 'approved_label_files', 0)} label file(s) "
+                            f"with {getattr(last_approval, 'applied_proposals', 0)} final box(es)."
+                        )
+                        with st.expander("Updated label files", expanded=False):
+                            st.dataframe(
+                                [
+                                    {"label_file": path}
+                                    for path in getattr(last_approval, "label_paths", [])
+                                ],
+                                width="stretch",
+                                hide_index=True,
+                            )
+
+    with tabs[4]:
+        st.subheader("Step 5: Label Mapping")
         st.caption("Define source-to-destination mappings. Set keep/drop to 'drop' to remove a class.")
         class_labels = _class_labels_from_state()
         inference_payload = st.session_state.get("gui_inference_payload")
@@ -2301,8 +4126,8 @@ def render() -> None:
         else:
             st.info("No mappings defined yet. Conversion follows unmapped policy behavior.")
 
-    with tabs[4]:
-        st.subheader("Step 5: Review & Run")
+    with tabs[5]:
+        st.subheader("Step 6: Review & Run")
         st.caption("Runs are blocked until required fields and mapping rows validate.")
         st.checkbox("Dry run", key="gui_dry_run")
         st.checkbox("Copy images to output", key="gui_copy_images")
@@ -2312,6 +4137,8 @@ def render() -> None:
         output_dir_raw = _coerce_text(st.session_state["gui_output_dir"])
         src = _coerce_text(st.session_state["gui_src"])
         dst = _coerce_text(st.session_state["gui_dst"])
+        selected_custom_format_id = _coerce_text(st.session_state.get("gui_custom_format_id")) or None
+        selected_custom_format_input_path = _coerce_text(st.session_state.get("gui_custom_format_path")) or None
         validation_mode = _coerce_text(st.session_state["gui_validation_mode"]) or ValidationMode.STRICT.value
         permissive_invalid_annotation_action = (
             _coerce_text(st.session_state["gui_permissive_invalid_annotation_action"])
@@ -2326,10 +4153,10 @@ def render() -> None:
         output_file_stem_suffix = sanitize_output_file_stem_affix(
             _coerce_text(st.session_state.get("gui_output_file_stem_suffix"))
         ) or None
-        correct_out_of_frame_bboxes = bool(st.session_state["gui_correct_out_of_frame_bboxes"])
+        out_of_frame_bbox_policy = _coerce_text(st.session_state["gui_out_of_frame_bbox_policy"]) or DEFAULT_OUT_OF_FRAME_BBOX_POLICY
         out_of_frame_tolerance_px = _coerce_out_of_frame_tolerance_px(
             st.session_state["gui_out_of_frame_tolerance_px"],
-            correct_out_of_frame_bboxes=correct_out_of_frame_bboxes,
+            out_of_frame_bbox_policy=out_of_frame_bbox_policy,
         )
         min_image_longest_edge_px = max(
             0,
@@ -2370,6 +4197,38 @@ def render() -> None:
             max_image_longest_edge_px=max_image_longest_edge_px,
             oversize_image_action=oversize_image_action,
         )
+        resolved_custom_format_id: str | None = selected_custom_format_id
+        selected_custom_format_path: Path | None = None
+        if src == "custom" and input_dir_raw:
+            custom_input_path = Path(input_dir_raw).expanduser()
+            if custom_input_path.exists() and custom_input_path.is_dir():
+                try:
+                    available_custom_options = _custom_format_options(custom_input_path)
+                except Exception as exc:
+                    blocking_errors.append(f"Unable to load custom format YAMLs: {exc}")
+                else:
+                    if not available_custom_options:
+                        explicit_option, explicit_error = _explicit_custom_format_option(selected_custom_format_input_path)
+                        if explicit_error:
+                            blocking_errors.append(explicit_error)
+                        elif explicit_option is None:
+                            blocking_errors.append(
+                                "No custom format YAML found. Add one at the dataset root as custom_format.yaml, "
+                                "data_format.yaml, or label_format.yaml, keep one under format_specs, or choose one manually."
+                            )
+                        else:
+                            resolved_custom_format_id = explicit_option.format_id
+                            selected_custom_format_path = explicit_option.path
+                    else:
+                        selected_option = _selected_custom_format_option(
+                            available_custom_options,
+                            resolved_custom_format_id,
+                        )
+                        if selected_option is None:
+                            blocking_errors.append("Choose a custom format YAML before running conversion.")
+                        else:
+                            resolved_custom_format_id = selected_option.format_id
+                            selected_custom_format_path = selected_option.path
 
         status = _coerce_text(st.session_state["gui_run_status"]) or "idle"
         progress = int(st.session_state["gui_run_progress"])
@@ -2420,6 +4279,8 @@ def render() -> None:
                     "input_dir": input_dir_raw,
                     "output_dir": output_dir_raw,
                     "src": src,
+                    "custom_format_id": resolved_custom_format_id,
+                    "custom_format_yaml": str(selected_custom_format_path) if selected_custom_format_path else None,
                     "dst": dst,
                     "validation_mode": validation_mode,
                     "unmapped_policy": unmapped_policy,
@@ -2428,7 +4289,7 @@ def render() -> None:
                     "output_filename_prefix": output_filename_prefix,
                     "output_file_stem_prefix": output_file_stem_prefix,
                     "output_file_stem_suffix": output_file_stem_suffix,
-                    "correct_out_of_frame_bboxes": correct_out_of_frame_bboxes,
+                    "out_of_frame_bbox_policy": out_of_frame_bbox_policy,
                     "out_of_frame_tolerance_px": out_of_frame_tolerance_px,
                     "min_image_longest_edge_px": min_image_longest_edge_px,
                     "max_image_longest_edge_px": max_image_longest_edge_px,
@@ -2500,6 +4361,8 @@ def render() -> None:
                     output_path=output_path,
                     src=src,
                     dst=dst,
+                    custom_format_id=resolved_custom_format_id,
+                    custom_format_path=selected_custom_format_path,
                     map_path=pending_map_path,
                     unmapped_policy=unmapped_policy,
                     dry_run=dry_run,
@@ -2513,7 +4376,8 @@ def render() -> None:
                     output_file_stem_prefix=output_file_stem_prefix,
                     output_file_stem_suffix=output_file_stem_suffix,
                     flatten_output_layout=allow_shared_output_dir,
-                    correct_out_of_frame_bboxes=correct_out_of_frame_bboxes,
+                    drop_frames_with_class_ids=parsed_mappings.drop_frames_with_class_ids,
+                    out_of_frame_bbox_policy=out_of_frame_bbox_policy,
                     out_of_frame_tolerance_px=out_of_frame_tolerance_px,
                     min_image_longest_edge_px=min_image_longest_edge_px,
                     max_image_longest_edge_px=max_image_longest_edge_px,
@@ -2534,6 +4398,8 @@ def render() -> None:
                     output_path=output_path,
                     src=src,
                     dst=dst,
+                    custom_format_id=resolved_custom_format_id,
+                    custom_format_path=selected_custom_format_path,
                     map_path=final_map_path,
                     unmapped_policy=unmapped_policy,
                     dry_run=dry_run,
@@ -2542,7 +4408,7 @@ def render() -> None:
                     input_path_exclude_substring=input_path_exclude_substring,
                     validation_mode=validation_mode,
                     permissive_invalid_annotation_action=permissive_invalid_annotation_action,
-                    correct_out_of_frame_bboxes=correct_out_of_frame_bboxes,
+                    out_of_frame_bbox_policy=out_of_frame_bbox_policy,
                     out_of_frame_tolerance_px=out_of_frame_tolerance_px,
                     min_image_longest_edge_px=min_image_longest_edge_px,
                     max_image_longest_edge_px=max_image_longest_edge_px,
@@ -2599,6 +4465,8 @@ def render() -> None:
                     ),
                     "mapping_path": str(final_map_path) if final_map_path else None,
                     "output_path": str(output_path.resolve()),
+                    "custom_format_id": resolved_custom_format_id,
+                    "custom_format_yaml": str(selected_custom_format_path) if selected_custom_format_path else None,
                     "output_filename_prefix": output_filename_prefix,
                     "output_file_stem_prefix": output_file_stem_prefix,
                     "output_file_stem_suffix": output_file_stem_suffix,
@@ -2721,6 +4589,291 @@ def render() -> None:
                     st.info(output_action_message)
 
             st.caption(f"Output directory: {last_run.get('output_path')}")
+
+    with tabs[6]:
+        st.subheader("Step 7: Classification")
+        st.caption(
+            "Assign a class to each image with a single keystroke. Class names and keys come from a "
+            "classification config file. Labels are saved to a JSON manifest and never modify "
+            "bounding-box label files, so this works alongside bbox labels or on bare image folders."
+        )
+        classification_config_cols = st.columns([4, 1], gap="small")
+        with classification_config_cols[0]:
+            st.text_input(
+                "Classification config (YAML or JSON)",
+                key="gui_classification_config_path",
+                placeholder="Blank: use classification.yaml from the dataset root",
+            )
+        with classification_config_cols[1]:
+            st.button(
+                "Browse...",
+                key="gui_classification_config_browse",
+                on_click=_on_browse_classification_config_path,
+            )
+        classification_browse_message = st.session_state.get("gui_classification_config_browse_message")
+        if isinstance(classification_browse_message, str) and classification_browse_message:
+            if bool(st.session_state.get("gui_classification_config_browse_available", True)):
+                st.info(classification_browse_message)
+            else:
+                st.warning(classification_browse_message)
+
+        classification_dataset_ready = bool(input_dir_raw) and input_path.exists() and input_path.is_dir()
+        classification_config: ClassificationConfig | None = None
+        classification_config_candidate = resolve_classification_config_candidate(
+            _coerce_text(st.session_state.get("gui_classification_config_path")),
+            dataset_root=input_path if classification_dataset_ready else None,
+        )
+        if not classification_dataset_ready:
+            st.info("Set a valid input directory in Step 1 to start classifying images.")
+        elif classification_config_candidate is None:
+            st.info(
+                "No classification config found. Add `classification.yaml` to the dataset root "
+                "or enter a config path above."
+            )
+        else:
+            try:
+                classification_config = load_classification_config(classification_config_candidate)
+            except Exception as exc:
+                st.error(f"Unable to load classification config: {exc}")
+
+        with st.expander("Example classification config", expanded=classification_config is None):
+            st.code(CLASSIFICATION_CONFIG_EXAMPLE, language="yaml")
+
+        if classification_config is not None and classification_dataset_ready:
+            st.caption(f"Config: {classification_config.source_path}")
+            classification_labels_path = resolve_classification_labels_path(input_path, classification_config)
+
+            classification_options = st.columns([1.2, 1.2, 1], gap="small")
+            with classification_options[0]:
+                st.checkbox(
+                    "Advance to next image after labeling",
+                    key="gui_classification_advance_on_label",
+                    disabled=classification_config.multi_label,
+                )
+            with classification_options[1]:
+                st.checkbox(
+                    "Show bounding boxes from Step 2 preview",
+                    key="gui_classification_show_bboxes",
+                )
+            with classification_options[2]:
+                rescan_requested = st.button("Rescan images", key="gui_classification_rescan")
+
+            classification_signature = _classification_dataset_signature(
+                input_path,
+                include_substring=input_path_include_substring,
+                exclude_substring=input_path_exclude_substring,
+            )
+            if (
+                rescan_requested
+                or st.session_state.get("gui_classification_image_paths_signature") != classification_signature
+            ):
+                try:
+                    st.session_state["gui_classification_image_paths"] = discover_classification_image_paths(
+                        input_path,
+                        input_path_include_substring=input_path_include_substring,
+                        input_path_exclude_substring=input_path_exclude_substring,
+                    )
+                    st.session_state["gui_classification_error"] = None
+                except Exception as exc:
+                    st.session_state["gui_classification_image_paths"] = []
+                    st.session_state["gui_classification_error"] = f"Unable to scan images: {exc}"
+                st.session_state["gui_classification_image_paths_signature"] = classification_signature
+                st.session_state["gui_classification_index"] = 0
+
+            classification_image_paths: list[str] = list(st.session_state.get("gui_classification_image_paths", []))
+            classification_labels: dict[str, list[str]] | None
+            try:
+                classification_labels = load_classification_labels(classification_labels_path)
+            except Exception as exc:
+                classification_labels = None
+                st.error(f"Unable to read classification labels {classification_labels_path}: {exc}")
+
+            classification_error = st.session_state.get("gui_classification_error")
+            if isinstance(classification_error, str) and classification_error:
+                st.error(classification_error)
+
+            if not classification_image_paths:
+                st.info("No images found in the input directory (after include/exclude filters).")
+                _classification_keyboard_action(
+                    enabled=False,
+                    previous_disabled=True,
+                    next_disabled=True,
+                    class_keys=[],
+                )
+            elif classification_labels is not None:
+                classification_max_index = len(classification_image_paths) - 1
+                classification_index = int(st.session_state.get("gui_classification_index", 0))
+                classification_index = min(max(classification_index, 0), classification_max_index)
+                keyboard_action, keyboard_key = _classification_keyboard_action(
+                    enabled=True,
+                    previous_disabled=classification_index == 0,
+                    next_disabled=classification_index == classification_max_index,
+                    class_keys=classification_config.keys,
+                )
+
+                classification_nav = st.columns([1, 1, 1.4, 1.2, 2], gap="small")
+                with classification_nav[0]:
+                    classification_previous_clicked = st.button(
+                        "Previous",
+                        key="gui_classification_prev",
+                        disabled=classification_index == 0,
+                    )
+                with classification_nav[1]:
+                    classification_next_clicked = st.button(
+                        "Next",
+                        key="gui_classification_next",
+                        disabled=classification_index == classification_max_index,
+                    )
+                with classification_nav[2]:
+                    classification_next_unlabeled_clicked = st.button(
+                        "Next unlabeled",
+                        key="gui_classification_next_unlabeled",
+                    )
+                with classification_nav[3]:
+                    classification_clear_clicked = st.button(
+                        "Clear label",
+                        key="gui_classification_clear",
+                    )
+
+                current_rel_path = classification_image_paths[classification_index]
+                labels_changed = False
+                if keyboard_action == "class":
+                    keyed_class = classification_config.class_for_key(keyboard_key)
+                    if keyed_class is not None:
+                        classification_labels = apply_classification_label(
+                            classification_labels,
+                            current_rel_path,
+                            keyed_class.name,
+                            multi_label=classification_config.multi_label,
+                        )
+                        labels_changed = True
+                        classification_index = classification_index_after_label(
+                            classification_index,
+                            max_index=classification_max_index,
+                            advance_on_label=bool(
+                                st.session_state.get("gui_classification_advance_on_label", True)
+                            ),
+                            multi_label=classification_config.multi_label,
+                        )
+                elif keyboard_action == "clear" or classification_clear_clicked:
+                    if image_labels(classification_labels, current_rel_path):
+                        classification_labels = clear_classification_label(
+                            classification_labels, current_rel_path
+                        )
+                        labels_changed = True
+
+                if labels_changed:
+                    try:
+                        save_classification_labels(
+                            classification_labels_path,
+                            classification_labels,
+                            config=classification_config,
+                        )
+                        st.session_state["gui_classification_last_saved"] = (
+                            f"Saved {current_rel_path} -> "
+                            f"{', '.join(image_labels(classification_labels, current_rel_path)) or '(no label)'}"
+                        )
+                        st.session_state["gui_classification_error"] = None
+                    except Exception as exc:
+                        st.session_state["gui_classification_error"] = (
+                            f"Unable to save classification labels: {exc}"
+                        )
+                        st.error(st.session_state["gui_classification_error"])
+
+                classification_index = _resolve_preview_index(
+                    classification_index,
+                    max_index=classification_max_index,
+                    keyboard_action=keyboard_action,
+                    previous_clicked=classification_previous_clicked,
+                    next_clicked=classification_next_clicked,
+                )
+                if classification_next_unlabeled_clicked:
+                    unlabeled_index = next_unlabeled_index(
+                        classification_image_paths,
+                        classification_labels,
+                        start_index=classification_index,
+                    )
+                    if unlabeled_index is None:
+                        st.info("Every image already has a label.")
+                    else:
+                        classification_index = unlabeled_index
+                st.session_state["gui_classification_index"] = classification_index
+
+                with classification_nav[4]:
+                    st.markdown(
+                        f"**Image {classification_index + 1} / {len(classification_image_paths)}**"
+                    )
+
+                current_rel_path = classification_image_paths[classification_index]
+                current_label_names = image_labels(classification_labels, current_rel_path)
+                classification_summary = summarize_classification_labels(
+                    classification_image_paths,
+                    classification_labels,
+                    config=classification_config,
+                )
+
+                preview_bboxes_by_file: dict[str, list[OverlayBBox]] = {}
+                if preview_vm is not None and bool(st.session_state.get("gui_classification_show_bboxes", True)):
+                    for preview_image in preview_vm.images:
+                        preview_bboxes_by_file[str(preview_image.file_name).replace("\\", "/")] = [
+                            (
+                                bbox.bbox_xywh_abs[0],
+                                bbox.bbox_xywh_abs[1],
+                                bbox.bbox_xywh_abs[2],
+                                bbox.bbox_xywh_abs[3],
+                                f"{bbox.class_id}:{bbox.class_name}",
+                            )
+                            for bbox in preview_image.bboxes
+                        ]
+
+                classification_cols = st.columns([3, 2], gap="small")
+                with classification_cols[0]:
+                    st.caption(current_rel_path)
+                    classification_overlay, classification_overlay_warnings = render_preview_overlay(
+                        dataset_root=input_path,
+                        image_rel_path=current_rel_path,
+                        bboxes=preview_bboxes_by_file.get(current_rel_path, []),
+                    )
+                    if classification_overlay is None:
+                        for warning in classification_overlay_warnings:
+                            st.warning(warning)
+                    else:
+                        st.image(classification_overlay, width="stretch")
+
+                with classification_cols[1]:
+                    if current_label_names:
+                        st.markdown(f"**Current label:** {escape(', '.join(current_label_names))}")
+                    else:
+                        st.markdown("**Current label:** _unlabeled_")
+                    st.caption(
+                        "Press a key to label this image. Left/Right arrows move between images; "
+                        "Backspace or Delete clears the label."
+                        + (" Multi-label mode: each key toggles its class." if classification_config.multi_label else "")
+                    )
+                    st.dataframe(
+                        [
+                            {
+                                "key": entry.key,
+                                "class": entry.name,
+                                "images": classification_summary.class_counts.get(entry.name, 0),
+                                "current": "yes" if entry.name in current_label_names else "",
+                            }
+                            for entry in classification_config.classes
+                        ],
+                        width="stretch",
+                        hide_index=True,
+                        height=min(420, max(120, 38 * (len(classification_config.classes) + 1))),
+                    )
+                    classification_metrics = st.columns(2, gap="small")
+                    classification_metrics[0].metric(
+                        "Labeled",
+                        f"{classification_summary.labeled_count} / {classification_summary.image_count}",
+                    )
+                    classification_metrics[1].metric("Unlabeled", classification_summary.unlabeled_count)
+                    st.caption(f"Labels file: {classification_labels_path}")
+                    last_saved = st.session_state.get("gui_classification_last_saved")
+                    if isinstance(last_saved, str) and last_saved:
+                        st.success(last_saved)
 
     _remember_gui_preferences()
 

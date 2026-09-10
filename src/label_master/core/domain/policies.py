@@ -4,10 +4,17 @@ from enum import Enum
 
 from pydantic import BaseModel, ConfigDict, Field
 
-DEFAULT_CORRECT_OUT_OF_FRAME_BBOXES = True
 DEFAULT_OUT_OF_FRAME_TOLERANCE_PX = 20.0
+DEFAULT_OUT_OF_FRAME_BBOX_POLICY = "correct"
 DEFAULT_MIN_IMAGE_LONGEST_EDGE_PX = 0
 DEFAULT_MAX_IMAGE_LONGEST_EDGE_PX = 0
+
+
+class OutOfFrameBBoxPolicy(str, Enum):
+    CORRECT = "correct"
+    WARN = "warn"
+    IGNORE = "ignore"
+    DROP = "drop"
 
 
 class UnmappedPolicy(str, Enum):
@@ -48,7 +55,7 @@ class ValidationPolicy(BaseModel):
     mode: ValidationMode = ValidationMode.STRICT
     max_invalid_annotations: int = Field(default=0, ge=0)
     invalid_annotation_action: InvalidAnnotationAction = InvalidAnnotationAction.KEEP
-    correct_out_of_frame_bboxes: bool = DEFAULT_CORRECT_OUT_OF_FRAME_BBOXES
+    out_of_frame_bbox_policy: OutOfFrameBBoxPolicy = OutOfFrameBBoxPolicy.CORRECT
     out_of_frame_tolerance_px: float = Field(default=DEFAULT_OUT_OF_FRAME_TOLERANCE_PX, ge=0.0)
 
     @classmethod
@@ -57,7 +64,7 @@ class ValidationPolicy(BaseModel):
         mode: ValidationMode,
         *,
         invalid_annotation_action: InvalidAnnotationAction = InvalidAnnotationAction.KEEP,
-        correct_out_of_frame_bboxes: bool = DEFAULT_CORRECT_OUT_OF_FRAME_BBOXES,
+        out_of_frame_bbox_policy: OutOfFrameBBoxPolicy = OutOfFrameBBoxPolicy.CORRECT,
         out_of_frame_tolerance_px: float = DEFAULT_OUT_OF_FRAME_TOLERANCE_PX,
     ) -> "ValidationPolicy":
         if mode == ValidationMode.PERMISSIVE:
@@ -65,14 +72,14 @@ class ValidationPolicy(BaseModel):
                 mode=mode,
                 max_invalid_annotations=10_000,
                 invalid_annotation_action=invalid_annotation_action,
-                correct_out_of_frame_bboxes=correct_out_of_frame_bboxes,
+                out_of_frame_bbox_policy=out_of_frame_bbox_policy,
                 out_of_frame_tolerance_px=out_of_frame_tolerance_px,
             )
         return cls(
             mode=mode,
             max_invalid_annotations=0,
             invalid_annotation_action=invalid_annotation_action,
-            correct_out_of_frame_bboxes=correct_out_of_frame_bboxes,
+            out_of_frame_bbox_policy=out_of_frame_bbox_policy,
             out_of_frame_tolerance_px=out_of_frame_tolerance_px,
         )
 

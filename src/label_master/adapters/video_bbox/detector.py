@@ -7,8 +7,8 @@ from pathlib import Path
 from label_master.adapters.custom.common import annotation_files_for_spec, split_row_tokens
 from label_master.adapters.video_bbox.common import (
     MOT_CHALLENGE_ANNOTATION_FORMAT,
-    discover_paired_video_json_sources,
     discover_frame_sequence_layout,
+    discover_paired_video_json_sources,
     discover_video_files,
     is_valid_mot_ground_truth_row,
     is_valid_tracking_bbox_row,
@@ -138,7 +138,7 @@ def _is_valid_paired_video_json_payload(payload: object) -> bool:
 
     valid_rows = 0
     sampled_rows = 0
-    for exists, rect in zip(exist, gt_rect):
+    for exists, rect in zip(exist, gt_rect, strict=True):
         sampled_rows += 1
         if not isinstance(exists, (bool, int, float)):
             return False

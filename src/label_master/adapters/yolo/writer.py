@@ -192,9 +192,14 @@ def write_yolo_dataset(
             progress_callback(index, total_label_files)
 
     classes_path = output_root / classes_file_name
-    class_lines = [
-        category.name for _, category in sorted(dataset.categories.items(), key=lambda item: item[0])
-    ]
+    if dataset.categories:
+        max_id = max(dataset.categories.keys())
+        class_lines = [
+            dataset.categories[i].name if i in dataset.categories else f"__gap_{i}__"
+            for i in range(max_id + 1)
+        ]
+    else:
+        class_lines = []
     classes_path.write_text("\n".join(class_lines) + ("\n" if class_lines else ""), encoding="utf-8")
 
     return labels_dir

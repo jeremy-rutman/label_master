@@ -114,6 +114,110 @@ def test_browse_directory_forwards_dialog_title(monkeypatch, tmp_path) -> None: 
     assert observed["dialog_title"] == "Select output directory"
 
 
+def test_browse_file_unavailable_fallback(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    def _raise_dialog(
+        *,
+        initial_path: Path | None = None,
+        dialog_title: str = "Select file",
+        yaml_only: bool = True,
+    ) -> Path | None:
+        del initial_path, dialog_title, yaml_only
+        raise RuntimeError("headless")
+
+    def _raise_fallback(
+        *,
+        initial_path: Path | None = None,
+        dialog_title: str = "Select file",
+        yaml_only: bool = True,
+    ) -> Path | None:
+        del initial_path, dialog_title, yaml_only
+        raise system_actions.FileDialogUnavailableError("no dialog backend")
+
+    monkeypatch.setattr(system_actions, "_open_native_file_dialog", _raise_dialog)
+    monkeypatch.setattr(system_actions, "_open_fallback_file_dialog", _raise_fallback)
+
+    result = system_actions.browse_for_file()
+
+    assert result.available is False
+    assert result.selected_path is None
+    assert result.message is not None
+    assert "manual" in result.message.lower()
+
+
+def test_browse_file_cancel_keeps_available(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    monkeypatch.setattr(
+        system_actions,
+        "_open_native_file_dialog",
+        lambda *, initial_path=None, dialog_title="Select file", yaml_only=True: None,
+    )
+
+    result = system_actions.browse_for_file()
+
+    assert result.available is True
+    assert result.selected_path is None
+    assert result.message is not None
+    assert "cancel" in result.message.lower()
+
+
+def test_browse_file_forwards_dialog_title(monkeypatch, tmp_path) -> None:  # type: ignore[no-untyped-def]
+    observed: dict[str, str | Path | None] = {}
+    file_path = tmp_path / "custom_format.yaml"
+    file_path.write_text("format_id: demo\n", encoding="utf-8")
+
+    def _fake_native_dialog(
+        *,
+        initial_path: Path | None = None,
+        dialog_title: str = "Select file",
+        yaml_only: bool = True,
+    ) -> Path | None:
+        observed["initial_path"] = initial_path
+        observed["dialog_title"] = dialog_title
+        observed["yaml_only"] = yaml_only
+        return file_path.resolve()
+
+    monkeypatch.setattr(system_actions, "_open_native_file_dialog", _fake_native_dialog)
+
+    result = system_actions.browse_for_file(
+        initial_path=file_path,
+        dialog_title="Select custom format YAML",
+    )
+
+    assert result.selected_path == file_path.resolve()
+    assert observed["initial_path"] == file_path
+    assert observed["dialog_title"] == "Select custom format YAML"
+    assert observed["yaml_only"] is True
+
+
+def test_browse_file_can_disable_yaml_filter(monkeypatch, tmp_path) -> None:  # type: ignore[no-untyped-def]
+    observed: dict[str, object] = {}
+    model_path = tmp_path / "detector.pt"
+    model_path.write_text("weights", encoding="utf-8")
+
+    def _fake_native_dialog(
+        *,
+        initial_path: Path | None = None,
+        dialog_title: str = "Select file",
+        yaml_only: bool = True,
+    ) -> Path | None:
+        observed["initial_path"] = initial_path
+        observed["dialog_title"] = dialog_title
+        observed["yaml_only"] = yaml_only
+        return model_path.resolve()
+
+    monkeypatch.setattr(system_actions, "_open_native_file_dialog", _fake_native_dialog)
+
+    result = system_actions.browse_for_file(
+        initial_path=model_path,
+        dialog_title="Select detector model",
+        yaml_only=False,
+    )
+
+    assert result.selected_path == model_path.resolve()
+    assert observed["initial_path"] == model_path
+    assert observed["dialog_title"] == "Select detector model"
+    assert observed["yaml_only"] is False
+
+
 def test_open_output_directory_success(monkeypatch, tmp_path) -> None:  # type: ignore[no-untyped-def]
     monkeypatch.setattr(system_actions, "_open_path_with_platform_default", lambda path: None)
 

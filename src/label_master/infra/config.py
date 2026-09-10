@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -72,6 +73,77 @@ def load_run_report_model(path: Path) -> RunReportModel:
     payload = _load_config_file(path)
     upgraded = upgrade_run_report_payload(payload)
     return parse_run_report(upgraded)
+
+
+@dataclass(frozen=True)
+class NameBasedMapping:
+    name_class_map: dict[str, str | None] = field(default_factory=dict)
+    class_id_overrides: dict[str, int] = field(default_factory=dict)
+    drop_frames_with_class_names: frozenset[str] = field(default_factory=frozenset)
+
+
+def load_name_based_mapping(path: Path) -> NameBasedMapping:
+    raw = _load_config_file(path)
+    name_map_raw = raw.get("class_map", {})
+    class_ids_raw = raw.get("class_ids", {})
+
+    if not isinstance(name_map_raw, dict):
+        raise ConfigurationError("Mapping file 'class_map' must be a dictionary")
+    if not isinstance(class_ids_raw, dict):
+        raise ConfigurationError("Mapping file 'class_ids' must be a dictionary")
+
+    name_class_map: dict[str, str | None] = {}
+    for key, value in name_map_raw.items():
+        if not isinstance(key, str):
+            raise ConfigurationError(f"class_map key must be a string class name: {key!r}")
+        if value is None:
+            name_class_map[key] = None
+        elif isinstance(value, str):
+            name_class_map[key] = value
+        else:
+            raise ConfigurationError(f"class_map value must be a string or null: {value!r}")
+
+    class_id_overrides: dict[str, int] = {}
+    for key, value in class_ids_raw.items():
+        if not isinstance(key, str):
+            raise ConfigurationError(f"class_ids key must be a string class name: {key!r}")
+        try:
+            class_id_overrides[key] = int(value)
+        except (TypeError, ValueError) as exc:
+            raise ConfigurationError(f"class_ids value must be an integer: {value!r}") from exc
+
+    return NameBasedMapping(
+        name_class_map=name_class_map,
+        class_id_overrides=class_id_overrides,
+        drop_frames_with_class_names=_parse_drop_frames(raw),
+    )
+
+
+def _parse_drop_frames(raw: dict[str, Any]) -> frozenset[str]:
+    value = raw.get("drop_frames_with_classes")
+    if value is None:
+        return frozenset()
+    if not isinstance(value, list):
+        raise ConfigurationError("'drop_frames_with_classes' must be a list of class names")
+    result: set[str] = set()
+    for item in value:
+        if not isinstance(item, str):
+            raise ConfigurationError(f"'drop_frames_with_classes' entries must be strings: {item!r}")
+        result.add(item)
+    return frozenset(result)
+
+
+def is_name_based_mapping_file(path: Path) -> bool:
+    raw = _load_config_file(path)
+    class_map_raw = raw.get("class_map", raw)
+    if not isinstance(class_map_raw, dict) or not class_map_raw:
+        return False
+    first_key = next(iter(class_map_raw))
+    try:
+        int(first_key)
+        return False
+    except (TypeError, ValueError):
+        return True
 
 
 def load_mapping_file(path: Path) -> dict[int, int | None]:

@@ -17,6 +17,8 @@
         enabled: false,
         previousDisabled: true,
         nextDisabled: true,
+        classKeys: [],
+        clearEnabled: false,
         nonce: 0,
       };
 
@@ -76,10 +78,20 @@
         }
 
         let action = null;
+        let key = null;
+        const pressedKey = typeof event.key === "string" ? event.key.toLowerCase() : "";
         if (event.key === "ArrowLeft" && !navState.previousDisabled) {
           action = "previous";
         } else if (event.key === "ArrowRight" && !navState.nextDisabled) {
           action = "next";
+        } else if (pressedKey && navState.classKeys.includes(pressedKey)) {
+          action = "class";
+          key = pressedKey;
+        } else if (
+          navState.clearEnabled &&
+          (event.key === "Backspace" || event.key === "Delete")
+        ) {
+          action = "clear";
         }
 
         if (!action) {
@@ -88,7 +100,7 @@
 
         event.preventDefault();
         navState.nonce += 1;
-        setComponentValue({ action, nonce: navState.nonce });
+        setComponentValue({ action, key, nonce: navState.nonce });
       }
 
       function attachListener() {
@@ -116,6 +128,10 @@
         navState.enabled = Boolean(args.enabled);
         navState.previousDisabled = Boolean(args.previous_disabled);
         navState.nextDisabled = Boolean(args.next_disabled);
+        navState.classKeys = Array.isArray(args.class_keys)
+          ? args.class_keys.map((value) => String(value).toLowerCase())
+          : [];
+        navState.clearEnabled = Boolean(args.clear_enabled);
 
         attachListener();
         setFrameHeight(0);

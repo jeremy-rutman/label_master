@@ -17,6 +17,7 @@ from label_master.core.domain.entities import (
 from label_master.core.domain.policies import (
     InferencePolicy,
     InvalidAnnotationAction,
+    OutOfFrameBBoxPolicy,
     RemapPolicy,
     UnmappedPolicy,
     ValidationMode,
@@ -80,7 +81,7 @@ def test_validation_policy_modes() -> None:
     assert strict.max_invalid_annotations == 0
     assert permissive.max_invalid_annotations > strict.max_invalid_annotations
     assert permissive.invalid_annotation_action == InvalidAnnotationAction.DROP
-    assert strict.correct_out_of_frame_bboxes is True
+    assert strict.out_of_frame_bbox_policy == OutOfFrameBBoxPolicy.CORRECT
     assert strict.out_of_frame_tolerance_px == 20.0
 
 

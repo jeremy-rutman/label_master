@@ -17,8 +17,14 @@ Custom specs are searched in:
 - `~/.label_master/formats/*.yaml`
 - `<dataset_root>/format_specs/*.yaml`
 - `<dataset_root>/.label_master/formats/*.yaml`
+- `<dataset_root>/custom_format.yaml`
+- `<dataset_root>/data_format.yaml`
+- `<dataset_root>/label_format.yaml`
 
 `dataset_root` means the dataset directory you open in the CLI or GUI.
+
+The root-level filenames above are shortcuts for single-spec datasets when you do
+not want a separate `format_specs/` folder.
 
 ## Top-Level Fields
 
@@ -43,6 +49,7 @@ The value of `parser.kind` tells `label_master` what parser family to use.
 
 Current parser kinds:
 
+- `bdd100k_image_labels`
 - `json_object_dataset`
 - `xml_annotation_dataset`
 - `csv_bracket_bbox_dataset`
@@ -50,7 +57,7 @@ Current parser kinds:
 - `tokenized_video`
 
 Built-in specs use several of these already. Custom user-defined specs are
-currently loaded only for `tokenized_video`.
+currently loaded for `bdd100k_image_labels` and `tokenized_video`.
 
 ## Glob Patterns
 
@@ -161,6 +168,45 @@ For COCO-style bboxes, that normally means:
 ```text
 [xmin, ymin, width, height]
 ```
+
+## `bdd100k_image_labels`
+
+Used for BDD100K-style JSON where each image record carries a nested `labels`
+array and each object bbox lives under `box2d`.
+
+Example:
+
+```yaml
+parser:
+  kind: bdd100k_image_labels
+  annotations_file: labels/bdd100k_labels_images_train.json
+  image_root: images/100k/train
+  image_name_field: name
+  labels_field: labels
+  label_id_field: id
+  category_field: category
+  bbox_field: box2d
+  x1_field: x1
+  y1_field: y1
+  x2_field: x2
+  y2_field: y2
+```
+
+Meaning:
+
+- `annotations_file`: JSON labels file relative to the dataset root
+- `image_root`: prefix added to each image `name` unless it is already present
+- `image_name_field`: field holding the image path or basename
+- `labels_field`: nested array containing object labels for one image
+- `label_id_field`: optional stable object ID; when missing, IDs are generated
+- `category_field`: field holding the class name
+- `bbox_field`: nested object containing the bbox corners
+- `x1_field`, `y1_field`, `x2_field`, `y2_field`: bbox corner keys inside `bbox_field`
+
+If your BDD100K `name` values already look like `100k/train/example.jpg`, set
+`image_root: images` so the loader resolves them as `images/100k/train/...`.
+If `name` is only the basename, use a more specific prefix such as
+`images/100k/train`.
 
 ## `xml_annotation_dataset`
 
@@ -315,6 +361,11 @@ It does not mean “rewrite both directions”.
 Used for text annotation files where each row describes one frame and some
 number of objects in that frame.
 
+Supported row formats:
+
+- `count_prefixed_objects`
+- `single_object`
+
 Example:
 
 ```yaml
@@ -326,6 +377,7 @@ parser:
   video_roots:
     - videos
     - data/videos
+  skip_rows: 0
   row_format:
     kind: count_prefixed_objects
     delimiter: whitespace
@@ -371,6 +423,50 @@ So the two objects are:
 
 - `(65, 25, 30, 27, bird)`
 - `(197, 87, 23, 22, bird)`
+
+### `row_format.kind: single_object`
+
+This means each row describes exactly one object in one frame.
+
+Example:
+
+```yaml
+parser:
+  kind: tokenized_video
+  annotation_globs:
+    - annotations/*.csv
+  video_roots:
+    - videos
+  skip_rows: 1
+  row_format:
+    kind: single_object
+    delimiter: comma
+    frame_index_field: 1
+    class_name_field: 10
+    quadrilateral_fields:
+      x1: 2
+      y1: 3
+      x2: 4
+      y2: 5
+      x3: 6
+      y3: 7
+      x4: 8
+      y4: 9
+```
+
+In this mode you can define either:
+
+- `bbox_fields`: direct `xmin`, `ymin`, `width`, `height`
+- `quadrilateral_fields`: four corner points that will be normalized to an enclosing bbox
+
+You must also define either `class_name_field` or `class_id_field`.
+
+### `skip_rows`
+
+Use `skip_rows` when annotation files start with one or more header rows.
+
+- `skip_rows: 0`: parse from the first line
+- `skip_rows: 1`: skip one header row before parsing data
 
 ### `frame_index_base`
 

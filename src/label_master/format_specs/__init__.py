@@ -1,4 +1,5 @@
 from .registry import (
+    Bdd100kImageLabelsParserSpec,
     BuiltInParserSpec,
     CountPrefixedObjectsRowFormatSpec,
     CsvBracketBBoxDatasetParserSpec,
@@ -8,8 +9,8 @@ from .registry import (
     TokenizedImageLabelsParserSpec,
     TokenizedObjectFieldSpec,
     TokenizedVideoParserSpec,
-    XYWHBBoxFieldSpec,
     XmlAnnotationDatasetParserSpec,
+    XYWHBBoxFieldSpec,
     custom_format_specs,
     load_builtin_format_specs,
     resolve_builtin_format_spec,
@@ -17,6 +18,7 @@ from .registry import (
 )
 
 __all__ = [
+    "Bdd100kImageLabelsParserSpec",
     "BuiltInParserSpec",
     "CsvBracketBBoxDatasetParserSpec",
     "CountPrefixedObjectsRowFormatSpec",

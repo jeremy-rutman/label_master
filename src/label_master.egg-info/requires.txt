@@ -2,6 +2,8 @@ typer<1,>=0.12
 streamlit<2,>=1.40
 pydantic<3,>=2.7
 PyYAML<7,>=6
+pyarrow<24,>=23
+scipy<2,>=1.13
 jsonschema<5,>=4.22
 httpx<1,>=0.27
 

@@ -1,0 +1,1846 @@
+{
+  "dropped_annotation_count": 92,
+  "dropped_annotations": [
+    {
+      "annotation_id": "annotations/Neovision2-Training-Heli-043.csv:000130:001",
+      "bbox_xywh_abs": [
+        174.0,
+        406.0,
+        309.0,
+        96.0
+      ],
+      "class_id": 9,
+      "class_name": "Container",
+      "context": {
+        "unmapped_policy": "drop"
+      },
+      "image_file": "images/Neovision2-Training-Heli-043/frame_000052.jpg",
+      "image_id": "Neovision2-Training-Heli-043:000052",
+      "reason": "Dropped by class mapping.",
+      "reason_code": "class_dropped_by_mapping",
+      "source_file": null,
+      "stage": "remap"
+    },
+    {
+      "annotation_id": "annotations/Neovision2-Training-Heli-043.csv:000131:001",
+      "bbox_xywh_abs": [
+        635.0,
+        470.0,
+        284.0,
+        55.0
+      ],
+      "class_id": 9,
+      "class_name": "Container",
+      "context": {
+        "unmapped_policy": "drop"
+      },
+      "image_file": "images/Neovision2-Training-Heli-043/frame_000052.jpg",
+      "image_id": "Neovision2-Training-Heli-043:000052",
+      "reason": "Dropped by class mapping.",
+      "reason_code": "class_dropped_by_mapping",
+      "source_file": null,
+      "stage": "remap"
+    },
+    {
+      "annotation_id": "annotations/Neovision2-Training-Heli-043.csv:000134:001",
+      "bbox_xywh_abs": [
+        970.0,
+        413.0,
+        294.0,
+        112.0
+      ],
+      "class_id": 9,
+      "class_name": "Container",
+      "context": {
+        "unmapped_policy": "drop"
+      },
+      "image_file": "images/Neovision2-Training-Heli-043/frame_000052.jpg",
+      "image_id": "Neovision2-Training-Heli-043:000052",
+      "reason": "Dropped by class mapping.",
+      "reason_code": "class_dropped_by_mapping",
+      "source_file": null,
+      "stage": "remap"
+    },
+    {
+      "annotation_id": "annotations/Neovision2-Training-Heli-043.csv:000137:001",
+      "bbox_xywh_abs": [
+        1314.0,
+        461.0,
+        279.0,
+        67.0
+      ],
+      "class_id": 9,
+      "class_name": "Container",
+      "context": {
+        "unmapped_policy": "drop"
+      },
+      "image_file": "images/Neovision2-Training-Heli-043/frame_000052.jpg",
+      "image_id": "Neovision2-Training-Heli-043:000052",
+      "reason": "Dropped by class mapping.",
+      "reason_code": "class_dropped_by_mapping",
+      "source_file": null,
+      "stage": "remap"
+    },
+    {
+      "annotation_id": "annotations/Neovision2-Training-Heli-043.csv:000141:001",
+      "bbox_xywh_abs": [
+        1646.0,
+        405.0,
+        274.0,
+        119.0
+      ],
+      "class_id": 9,
+      "class_name": "Container",
+      "context": {
+        "unmapped_policy": "drop"
+      },
+      "image_file": "images/Neovision2-Training-Heli-043/frame_000052.jpg",
+      "image_id": "Neovision2-Training-Heli-043:000052",
+      "reason": "Dropped by class mapping.",
+      "reason_code": "class_dropped_by_mapping",
+      "source_file": null,
+      "stage": "remap"
+    },
+    {
+      "annotation_id": "annotations/Neovision2-Training-Heli-043.csv:000144:001",
+      "bbox_xywh_abs": [
+        57.0,
+        386.0,
+        309.0,
+        96.0
+      ],
+      "class_id": 9,
+      "class_name": "Container",
+      "context": {
+        "unmapped_policy": "drop"
+      },
+      "image_file": "images/Neovision2-Training-Heli-043/frame_000056.jpg",
+      "image_id": "Neovision2-Training-Heli-043:000056",
+      "reason": "Dropped by class mapping.",
+      "reason_code": "class_dropped_by_mapping",
+      "source_file": null,
+      "stage": "remap"
+    },
+    {
+      "annotation_id": "annotations/Neovision2-Training-Heli-043.csv:000145:001",
+      "bbox_xywh_abs": [
+        525.0,
+        455.0,
+        284.0,
+        55.0
+      ],
+      "class_id": 9,
+      "class_name": "Container",
+      "context": {
+        "unmapped_policy": "drop"
+      },
+      "image_file": "images/Neovision2-Training-Heli-043/frame_000056.jpg",
+      "image_id": "Neovision2-Training-Heli-043:000056",
+      "reason": "Dropped by class mapping.",
+      "reason_code": "class_dropped_by_mapping",
+      "source_file": null,
+      "stage": "remap"
+    },
+    {
+      "annotation_id": "annotations/Neovision2-Training-Heli-043.csv:000148:001",
+      "bbox_xywh_abs": [
+        863.0,
+        396.0,
+        294.0,
+        112.0
+      ],
+      "class_id": 9,
+      "class_name": "Container",
+      "context": {
+        "unmapped_policy": "drop"
+      },
+      "image_file": "images/Neovision2-Training-Heli-043/frame_000056.jpg",
+      "image_id": "Neovision2-Training-Heli-043:000056",
+      "reason": "Dropped by class mapping.",
+      "reason_code": "class_dropped_by_mapping",
+      "source_file": null,
+      "stage": "remap"
+    },
+    {
+      "annotation_id": "annotations/Neovision2-Training-Heli-043.csv:000151:001",
+      "bbox_xywh_abs": [
+        1199.0,
+        448.0,
+        278.0,
+        62.0
+      ],
+      "class_id": 9,
+      "class_name": "Container",
+      "context": {
+        "unmapped_policy": "drop"
+      },
+      "image_file": "images/Neovision2-Training-Heli-043/frame_000056.jpg",
+      "image_id": "Neovision2-Training-Heli-043:000056",
+      "reason": "Dropped by class mapping.",
+      "reason_code": "class_dropped_by_mapping",
+      "source_file": null,
+      "stage": "remap"
+    },
+    {
+      "annotation_id": "annotations/Neovision2-Training-Heli-043.csv:000155:001",
+      "bbox_xywh_abs": [
+        1523.0,
+        377.0,
+        298.0,
+        129.0
+      ],
+      "class_id": 9,
+      "class_name": "Container",
+      "context": {
+        "unmapped_policy": "drop"
+      },
+      "image_file": "images/Neovision2-Training-Heli-043/frame_000056.jpg",
+      "image_id": "Neovision2-Training-Heli-043:000056",
+      "reason": "Dropped by class mapping.",
+      "reason_code": "class_dropped_by_mapping",
+      "source_file": null,
+      "stage": "remap"
+    },
+    {
+      "annotation_id": "annotations/Neovision2-Training-Heli-043.csv:000157:001",
+      "bbox_xywh_abs": [
+        1852.0,
+        432.0,
+        68.0,
+        27.0
+      ],
+      "class_id": 9,
+      "class_name": "Container",
+      "context": {
+        "unmapped_policy": "drop"
+      },
+      "image_file": "images/Neovision2-Training-Heli-043/frame_000056.jpg",
+      "image_id": "Neovision2-Training-Heli-043:000056",
+      "reason": "Dropped by class mapping.",
+      "reason_code": "class_dropped_by_mapping",
+      "source_file": null,
+      "stage": "remap"
+    },
+    {
+      "annotation_id": "annotations/Neovision2-Training-Heli-043.csv:000158:001",
+      "bbox_xywh_abs": [
+        0.0,
+        384.0,
+        244.0,
+        109.0
+      ],
+      "class_id": 9,
+      "class_name": "Container",
+      "context": {
+        "unmapped_policy": "drop"
+      },
+      "image_file": "images/Neovision2-Training-Heli-043/frame_000060.jpg",
+      "image_id": "Neovision2-Training-Heli-043:000060",
+      "reason": "Dropped by class mapping.",
+      "reason_code": "class_dropped_by_mapping",
+      "source_file": null,
+      "stage": "remap"
+    },
+    {
+      "annotation_id": "annotations/Neovision2-Training-Heli-043.csv:000159:001",
+      "bbox_xywh_abs": [
+        404.0,
+        445.0,
+        284.0,
+        55.0
+      ],
+      "class_id": 9,
+      "class_name": "Container",
+      "context": {
+        "unmapped_policy": "drop"
+      },
+      "image_file": "images/Neovision2-Training-Heli-043/frame_000060.jpg",
+      "image_id": "Neovision2-Training-Heli-043:000060",
+      "reason": "Dropped by class mapping.",
+      "reason_code": "class_dropped_by_mapping",
+      "source_file": null,
+      "stage": "remap"
+    },
+    {
+      "annotation_id": "annotations/Neovision2-Training-Heli-043.csv:000162:001",
+      "bbox_xywh_abs": [
+        746.0,
+        388.0,
+        294.0,
+        112.0
+      ],
+      "class_id": 9,
+      "class_name": "Container",
+      "context": {
+        "unmapped_policy": "drop"
+      },
+      "image_file": "images/Neovision2-Training-Heli-043/frame_000060.jpg",
+      "image_id": "Neovision2-Training-Heli-043:000060",
+      "reason": "Dropped by class mapping.",
+      "reason_code": "class_dropped_by_mapping",
+      "source_file": null,
+      "stage": "remap"
+    },
+    {
+      "annotation_id": "annotations/Neovision2-Training-Heli-043.csv:000165:001",
+      "bbox_xywh_abs": [
+        1084.0,
+        437.0,
+        278.0,
+        62.0
+      ],
+      "class_id": 9,
+      "class_name": "Container",
+      "context": {
+        "unmapped_policy": "drop"
+      },
+      "image_file": "images/Neovision2-Training-Heli-043/frame_000060.jpg",
+      "image_id": "Neovision2-Training-Heli-043:000060",
+      "reason": "Dropped by class mapping.",
+      "reason_code": "class_dropped_by_mapping",
+      "source_file": null,
+      "stage": "remap"
+    },
+    {
+      "annotation_id": "annotations/Neovision2-Training-Heli-043.csv:000169:001",
+      "bbox_xywh_abs": [
+        1405.0,
+        374.0,
+        298.0,
+        129.0
+      ],
+      "class_id": 9,
+      "class_name": "Container",
+      "context": {
+        "unmapped_policy": "drop"
+      },
+      "image_file": "images/Neovision2-Training-Heli-043/frame_000060.jpg",
+      "image_id": "Neovision2-Training-Heli-043:000060",
+      "reason": "Dropped by class mapping.",
+      "reason_code": "class_dropped_by_mapping",
+      "source_file": null,
+      "stage": "remap"
+    },
+    {
+      "annotation_id": "annotations/Neovision2-Training-Heli-043.csv:000173:001",
+      "bbox_xywh_abs": [
+        1734.0,
+        397.0,
+        186.0,
+        73.0
+      ],
+      "class_id": 9,
+      "class_name": "Container",
+      "context": {
+        "unmapped_policy": "drop"
+      },
+      "image_file": "images/Neovision2-Training-Heli-043/frame_000060.jpg",
+      "image_id": "Neovision2-Training-Heli-043:000060",
+      "reason": "Dropped by class mapping.",
+      "reason_code": "class_dropped_by_mapping",
+      "source_file": null,
+      "stage": "remap"
+    },
+    {
+      "annotation_id": "annotations/Neovision2-Training-Heli-043.csv:000176:001",
+      "bbox_xywh_abs": [
+        0.0,
+        384.0,
+        111.0,
+        113.0
+      ],
+      "class_id": 9,
+      "class_name": "Container",
+      "context": {
+        "unmapped_policy": "drop"
+      },
+      "image_file": "images/Neovision2-Training-Heli-043/frame_000064.jpg",
+      "image_id": "Neovision2-Training-Heli-043:000064",
+      "reason": "Dropped by class mapping.",
+      "reason_code": "class_dropped_by_mapping",
+      "source_file": null,
+      "stage": "remap"
+    },
+    {
+      "annotation_id": "annotations/Neovision2-Training-Heli-043.csv:000177:001",
+      "bbox_xywh_abs": [
+        261.0,
+        444.0,
+        300.0,
+        55.0
+      ],
+      "class_id": 9,
+      "class_name": "Container",
+      "context": {
+        "unmapped_policy": "drop"
+      },
+      "image_file": "images/Neovision2-Training-Heli-043/frame_000064.jpg",
+      "image_id": "Neovision2-Training-Heli-043:000064",
+      "reason": "Dropped by class mapping.",
+      "reason_code": "class_dropped_by_mapping",
+      "source_file": null,
+      "stage": "remap"
+    },
+    {
+      "annotation_id": "annotations/Neovision2-Training-Heli-043.csv:000180:001",
+      "bbox_xywh_abs": [
+        615.0,
+        387.0,
+        294.0,
+        112.0
+      ],
+      "class_id": 9,
+      "class_name": "Container",
+      "context": {
+        "unmapped_policy": "drop"
+      },
+      "image_file": "images/Neovision2-Training-Heli-043/frame_000064.jpg",
+      "image_id": "Neovision2-Training-Heli-043:000064",
+      "reason": "Dropped by class mapping.",
+      "reason_code": "class_dropped_by_mapping",
+      "source_file": null,
+      "stage": "remap"
+    },
+    {
+      "annotation_id": "annotations/Neovision2-Training-Heli-043.csv:000183:001",
+      "bbox_xywh_abs": [
+        949.0,
+        436.0,
+        278.0,
+        62.0
+      ],
+      "class_id": 9,
+      "class_name": "Container",
+      "context": {
+        "unmapped_policy": "drop"
+      },
+      "image_file": "images/Neovision2-Training-Heli-043/frame_000064.jpg",
+      "image_id": "Neovision2-Training-Heli-043:000064",
+      "reason": "Dropped by class mapping.",
+      "reason_code": "class_dropped_by_mapping",
+      "source_file": null,
+      "stage": "remap"
+    },
+    {
+      "annotation_id": "annotations/Neovision2-Training-Heli-043.csv:000187:001",
+      "bbox_xywh_abs": [
+        1279.0,
+        371.0,
+        298.0,
+        129.0
+      ],
+      "class_id": 9,
+      "class_name": "Container",
+      "context": {
+        "unmapped_policy": "drop"
+      },
+      "image_file": "images/Neovision2-Training-Heli-043/frame_000064.jpg",
+      "image_id": "Neovision2-Training-Heli-043:000064",
+      "reason": "Dropped by class mapping.",
+      "reason_code": "class_dropped_by_mapping",
+      "source_file": null,
+      "stage": "remap"
+    },
+    {
+      "annotation_id": "annotations/Neovision2-Training-Heli-043.csv:000191:001",
+      "bbox_xywh_abs": [
+        1602.0,
+        379.0,
+        290.0,
+        113.0
+      ],
+      "class_id": 9,
+      "class_name": "Container",
+      "context": {
+        "unmapped_policy": "drop"
+      },
+      "image_file": "images/Neovision2-Training-Heli-043/frame_000064.jpg",
+      "image_id": "Neovision2-Training-Heli-043:000064",
+      "reason": "Dropped by class mapping.",
+      "reason_code": "class_dropped_by_mapping",
+      "source_file": null,
+      "stage": "remap"
+    },
+    {
+      "annotation_id": "annotations/Neovision2-Training-Heli-043.csv:000194:001",
+      "bbox_xywh_abs": [
+        161.0,
+        453.0,
+        300.0,
+        55.0
+      ],
+      "class_id": 9,
+      "class_name": "Container",
+      "context": {
+        "unmapped_policy": "drop"
+      },
+      "image_file": "images/Neovision2-Training-Heli-043/frame_000068.jpg",
+      "image_id": "Neovision2-Training-Heli-043:000068",
+      "reason": "Dropped by class mapping.",
+      "reason_code": "class_dropped_by_mapping",
+      "source_file": null,
+      "stage": "remap"
+    },
+    {
+      "annotation_id": "annotations/Neovision2-Training-Heli-043.csv:000198:001",
+      "bbox_xywh_abs": [
+        517.0,
+        394.0,
+        294.0,
+        112.0
+      ],
+      "class_id": 9,
+      "class_name": "Container",
+      "context": {
+        "unmapped_policy": "drop"
+      },
+      "image_file": "images/Neovision2-Training-Heli-043/frame_000068.jpg",
+      "image_id": "Neovision2-Training-Heli-043:000068",
+      "reason": "Dropped by class mapping.",
+      "reason_code": "class_dropped_by_mapping",
+      "source_file": null,
+      "stage": "remap"
+    },
+    {
+      "annotation_id": "annotations/Neovision2-Training-Heli-043.csv:000200:001",
+      "bbox_xywh_abs": [
+        851.0,
+        443.0,
+        278.0,
+        62.0
+      ],
+      "class_id": 9,
+      "class_name": "Container",
+      "context": {
+        "unmapped_policy": "drop"
+      },
+      "image_file": "images/Neovision2-Training-Heli-043/frame_000068.jpg",
+      "image_id": "Neovision2-Training-Heli-043:000068",
+      "reason": "Dropped by class mapping.",
+      "reason_code": "class_dropped_by_mapping",
+      "source_file": null,
+      "stage": "remap"
+    },
+    {
+      "annotation_id": "annotations/Neovision2-Training-Heli-043.csv:000204:001",
+      "bbox_xywh_abs": [
+        1177.0,
+        373.0,
+        298.0,
+        129.0
+      ],
+      "class_id": 9,
+      "class_name": "Container",
+      "context": {
+        "unmapped_policy": "drop"
+      },
+      "image_file": "images/Neovision2-Training-Heli-043/frame_000068.jpg",
+      "image_id": "Neovision2-Training-Heli-043:000068",
+      "reason": "Dropped by class mapping.",
+      "reason_code": "class_dropped_by_mapping",
+      "source_file": null,
+      "stage": "remap"
+    },
+    {
+      "annotation_id": "annotations/Neovision2-Training-Heli-043.csv:000208:001",
+      "bbox_xywh_abs": [
+        1505.0,
+        386.0,
+        290.0,
+        113.0
+      ],
+      "class_id": 9,
+      "class_name": "Container",
+      "context": {
+        "unmapped_policy": "drop"
+      },
+      "image_file": "images/Neovision2-Training-Heli-043/frame_000068.jpg",
+      "image_id": "Neovision2-Training-Heli-043:000068",
+      "reason": "Dropped by class mapping.",
+      "reason_code": "class_dropped_by_mapping",
+      "source_file": null,
+      "stage": "remap"
+    },
+    {
+      "annotation_id": "annotations/Neovision2-Training-Heli-043.csv:000211:001",
+      "bbox_xywh_abs": [
+        97.0,
+        467.0,
+        300.0,
+        55.0
+      ],
+      "class_id": 9,
+      "class_name": "Container",
+      "context": {
+        "unmapped_policy": "drop"
+      },
+      "image_file": "images/Neovision2-Training-Heli-043/frame_000072.jpg",
+      "image_id": "Neovision2-Training-Heli-043:000072",
+      "reason": "Dropped by class mapping.",
+      "reason_code": "class_dropped_by_mapping",
+      "source_file": null,
+      "stage": "remap"
+    },
+    {
+      "annotation_id": "annotations/Neovision2-Training-Heli-043.csv:000215:001",
+      "bbox_xywh_abs": [
+        452.0,
+        410.0,
+        294.0,
+        112.0
+      ],
+      "class_id": 9,
+      "class_name": "Container",
+      "context": {
+        "unmapped_policy": "drop"
+      },
+      "image_file": "images/Neovision2-Training-Heli-043/frame_000072.jpg",
+      "image_id": "Neovision2-Training-Heli-043:000072",
+      "reason": "Dropped by class mapping.",
+      "reason_code": "class_dropped_by_mapping",
+      "source_file": null,
+      "stage": "remap"
+    },
+    {
+      "annotation_id": "annotations/Neovision2-Training-Heli-043.csv:000217:001",
+      "bbox_xywh_abs": [
+        791.0,
+        460.0,
+        278.0,
+        62.0
+      ],
+      "class_id": 9,
+      "class_name": "Container",
+      "context": {
+        "unmapped_policy": "drop"
+      },
+      "image_file": "images/Neovision2-Training-Heli-043/frame_000072.jpg",
+      "image_id": "Neovision2-Training-Heli-043:000072",
+      "reason": "Dropped by class mapping.",
+      "reason_code": "class_dropped_by_mapping",
+      "source_file": null,
+      "stage": "remap"
+    },
+    {
+      "annotation_id": "annotations/Neovision2-Training-Heli-043.csv:000221:001",
+      "bbox_xywh_abs": [
+        1118.0,
+        397.0,
+        298.0,
+        129.0
+      ],
+      "class_id": 9,
+      "class_name": "Container",
+      "context": {
+        "unmapped_policy": "drop"
+      },
+      "image_file": "images/Neovision2-Training-Heli-043/frame_000072.jpg",
+      "image_id": "Neovision2-Training-Heli-043:000072",
+      "reason": "Dropped by class mapping.",
+      "reason_code": "class_dropped_by_mapping",
+      "source_file": null,
+      "stage": "remap"
+    },
+    {
+      "annotation_id": "annotations/Neovision2-Training-Heli-043.csv:000225:001",
+      "bbox_xywh_abs": [
+        1436.0,
+        400.0,
+        290.0,
+        113.0
+      ],
+      "class_id": 9,
+      "class_name": "Container",
+      "context": {
+        "unmapped_policy": "drop"
+      },
+      "image_file": "images/Neovision2-Training-Heli-043/frame_000072.jpg",
+      "image_id": "Neovision2-Training-Heli-043:000072",
+      "reason": "Dropped by class mapping.",
+      "reason_code": "class_dropped_by_mapping",
+      "source_file": null,
+      "stage": "remap"
+    },
+    {
+      "annotation_id": "annotations/Neovision2-Training-Heli-043.csv:000228:001",
+      "bbox_xywh_abs": [
+        40.0,
+        488.0,
+        300.0,
+        55.0
+      ],
+      "class_id": 9,
+      "class_name": "Container",
+      "context": {
+        "unmapped_policy": "drop"
+      },
+      "image_file": "images/Neovision2-Training-Heli-043/frame_000076.jpg",
+      "image_id": "Neovision2-Training-Heli-043:000076",
+      "reason": "Dropped by class mapping.",
+      "reason_code": "class_dropped_by_mapping",
+      "source_file": null,
+      "stage": "remap"
+    },
+    {
+      "annotation_id": "annotations/Neovision2-Training-Heli-043.csv:000231:001",
+      "bbox_xywh_abs": [
+        390.0,
+        419.0,
+        294.0,
+        112.0
+      ],
+      "class_id": 9,
+      "class_name": "Container",
+      "context": {
+        "unmapped_policy": "drop"
+      },
+      "image_file": "images/Neovision2-Training-Heli-043/frame_000076.jpg",
+      "image_id": "Neovision2-Training-Heli-043:000076",
+      "reason": "Dropped by class mapping.",
+      "reason_code": "class_dropped_by_mapping",
+      "source_file": null,
+      "stage": "remap"
+    },
+    {
+      "annotation_id": "annotations/Neovision2-Training-Heli-043.csv:000233:001",
+      "bbox_xywh_abs": [
+        735.0,
+        472.0,
+        278.0,
+        62.0
+      ],
+      "class_id": 9,
+      "class_name": "Container",
+      "context": {
+        "unmapped_policy": "drop"
+      },
+      "image_file": "images/Neovision2-Training-Heli-043/frame_000076.jpg",
+      "image_id": "Neovision2-Training-Heli-043:000076",
+      "reason": "Dropped by class mapping.",
+      "reason_code": "class_dropped_by_mapping",
+      "source_file": null,
+      "stage": "remap"
+    },
+    {
+      "annotation_id": "annotations/Neovision2-Training-Heli-043.csv:000236:001",
+      "bbox_xywh_abs": [
+        1061.0,
+        404.0,
+        298.0,
+        129.0
+      ],
+      "class_id": 9,
+      "class_name": "Container",
+      "context": {
+        "unmapped_policy": "drop"
+      },
+      "image_file": "images/Neovision2-Training-Heli-043/frame_000076.jpg",
+      "image_id": "Neovision2-Training-Heli-043:000076",
+      "reason": "Dropped by class mapping.",
+      "reason_code": "class_dropped_by_mapping",
+      "source_file": null,
+      "stage": "remap"
+    },
+    {
+      "annotation_id": "annotations/Neovision2-Training-Heli-043.csv:000241:001",
+      "bbox_xywh_abs": [
+        1391.0,
+        409.0,
+        290.0,
+        113.0
+      ],
+      "class_id": 9,
+      "class_name": "Container",
+      "context": {
+        "unmapped_policy": "drop"
+      },
+      "image_file": "images/Neovision2-Training-Heli-043/frame_000076.jpg",
+      "image_id": "Neovision2-Training-Heli-043:000076",
+      "reason": "Dropped by class mapping.",
+      "reason_code": "class_dropped_by_mapping",
+      "source_file": null,
+      "stage": "remap"
+    },
+    {
+      "annotation_id": "annotations/Neovision2-Training-Heli-043.csv:000243:001",
+      "bbox_xywh_abs": [
+        0.0,
+        488.0,
+        272.0,
+        57.0
+      ],
+      "class_id": 9,
+      "class_name": "Container",
+      "context": {
+        "unmapped_policy": "drop"
+      },
+      "image_file": "images/Neovision2-Training-Heli-043/frame_000080.jpg",
+      "image_id": "Neovision2-Training-Heli-043:000080",
+      "reason": "Dropped by class mapping.",
+      "reason_code": "class_dropped_by_mapping",
+      "source_file": null,
+      "stage": "remap"
+    },
+    {
+      "annotation_id": "annotations/Neovision2-Training-Heli-043.csv:000246:001",
+      "bbox_xywh_abs": [
+        328.0,
+        418.0,
+        294.0,
+        112.0
+      ],
+      "class_id": 9,
+      "class_name": "Container",
+      "context": {
+        "unmapped_policy": "drop"
+      },
+      "image_file": "images/Neovision2-Training-Heli-043/frame_000080.jpg",
+      "image_id": "Neovision2-Training-Heli-043:000080",
+      "reason": "Dropped by class mapping.",
+      "reason_code": "class_dropped_by_mapping",
+      "source_file": null,
+      "stage": "remap"
+    },
+    {
+      "annotation_id": "annotations/Neovision2-Training-Heli-043.csv:000248:001",
+      "bbox_xywh_abs": [
+        670.0,
+        474.0,
+        278.0,
+        62.0
+      ],
+      "class_id": 9,
+      "class_name": "Container",
+      "context": {
+        "unmapped_policy": "drop"
+      },
+      "image_file": "images/Neovision2-Training-Heli-043/frame_000080.jpg",
+      "image_id": "Neovision2-Training-Heli-043:000080",
+      "reason": "Dropped by class mapping.",
+      "reason_code": "class_dropped_by_mapping",
+      "source_file": null,
+      "stage": "remap"
+    },
+    {
+      "annotation_id": "annotations/Neovision2-Training-Heli-043.csv:000251:001",
+      "bbox_xywh_abs": [
+        994.0,
+        406.0,
+        298.0,
+        129.0
+      ],
+      "class_id": 9,
+      "class_name": "Container",
+      "context": {
+        "unmapped_policy": "drop"
+      },
+      "image_file": "images/Neovision2-Training-Heli-043/frame_000080.jpg",
+      "image_id": "Neovision2-Training-Heli-043:000080",
+      "reason": "Dropped by class mapping.",
+      "reason_code": "class_dropped_by_mapping",
+      "source_file": null,
+      "stage": "remap"
+    },
+    {
+      "annotation_id": "annotations/Neovision2-Training-Heli-043.csv:000256:001",
+      "bbox_xywh_abs": [
+        1318.0,
+        409.0,
+        290.0,
+        113.0
+      ],
+      "class_id": 9,
+      "class_name": "Container",
+      "context": {
+        "unmapped_policy": "drop"
+      },
+      "image_file": "images/Neovision2-Training-Heli-043/frame_000080.jpg",
+      "image_id": "Neovision2-Training-Heli-043:000080",
+      "reason": "Dropped by class mapping.",
+      "reason_code": "class_dropped_by_mapping",
+      "source_file": null,
+      "stage": "remap"
+    },
+    {
+      "annotation_id": "annotations/Neovision2-Training-Heli-043.csv:000258:001",
+      "bbox_xywh_abs": [
+        0.0,
+        488.0,
+        189.0,
+        57.0
+      ],
+      "class_id": 9,
+      "class_name": "Container",
+      "context": {
+        "unmapped_policy": "drop"
+      },
+      "image_file": "images/Neovision2-Training-Heli-043/frame_000084.jpg",
+      "image_id": "Neovision2-Training-Heli-043:000084",
+      "reason": "Dropped by class mapping.",
+      "reason_code": "class_dropped_by_mapping",
+      "source_file": null,
+      "stage": "remap"
+    },
+    {
+      "annotation_id": "annotations/Neovision2-Training-Heli-043.csv:000261:001",
+      "bbox_xywh_abs": [
+        247.0,
+        425.0,
+        300.0,
+        124.0
+      ],
+      "class_id": 9,
+      "class_name": "Container",
+      "context": {
+        "unmapped_policy": "drop"
+      },
+      "image_file": "images/Neovision2-Training-Heli-043/frame_000084.jpg",
+      "image_id": "Neovision2-Training-Heli-043:000084",
+      "reason": "Dropped by class mapping.",
+      "reason_code": "class_dropped_by_mapping",
+      "source_file": null,
+      "stage": "remap"
+    },
+    {
+      "annotation_id": "annotations/Neovision2-Training-Heli-043.csv:000263:001",
+      "bbox_xywh_abs": [
+        587.0,
+        479.0,
+        278.0,
+        62.0
+      ],
+      "class_id": 9,
+      "class_name": "Container",
+      "context": {
+        "unmapped_policy": "drop"
+      },
+      "image_file": "images/Neovision2-Training-Heli-043/frame_000084.jpg",
+      "image_id": "Neovision2-Training-Heli-043:000084",
+      "reason": "Dropped by class mapping.",
+      "reason_code": "class_dropped_by_mapping",
+      "source_file": null,
+      "stage": "remap"
+    },
+    {
+      "annotation_id": "annotations/Neovision2-Training-Heli-043.csv:000266:001",
+      "bbox_xywh_abs": [
+        918.0,
+        413.0,
+        298.0,
+        129.0
+      ],
+      "class_id": 9,
+      "class_name": "Container",
+      "context": {
+        "unmapped_policy": "drop"
+      },
+      "image_file": "images/Neovision2-Training-Heli-043/frame_000084.jpg",
+      "image_id": "Neovision2-Training-Heli-043:000084",
+      "reason": "Dropped by class mapping.",
+      "reason_code": "class_dropped_by_mapping",
+      "source_file": null,
+      "stage": "remap"
+    },
+    {
+      "annotation_id": "annotations/Neovision2-Training-Heli-043.csv:000271:001",
+      "bbox_xywh_abs": [
+        1245.0,
+        409.0,
+        290.0,
+        113.0
+      ],
+      "class_id": 9,
+      "class_name": "Container",
+      "context": {
+        "unmapped_policy": "drop"
+      },
+      "image_file": "images/Neovision2-Training-Heli-043/frame_000084.jpg",
+      "image_id": "Neovision2-Training-Heli-043:000084",
+      "reason": "Dropped by class mapping.",
+      "reason_code": "class_dropped_by_mapping",
+      "source_file": null,
+      "stage": "remap"
+    },
+    {
+      "annotation_id": "annotations/Neovision2-Training-Heli-043.csv:000273:001",
+      "bbox_xywh_abs": [
+        1803.0,
+        729.0,
+        117.0,
+        181.0
+      ],
+      "class_id": 9,
+      "class_name": "Container",
+      "context": {
+        "unmapped_policy": "drop"
+      },
+      "image_file": "images/Neovision2-Training-Heli-043/frame_000084.jpg",
+      "image_id": "Neovision2-Training-Heli-043:000084",
+      "reason": "Dropped by class mapping.",
+      "reason_code": "class_dropped_by_mapping",
+      "source_file": null,
+      "stage": "remap"
+    },
+    {
+      "annotation_id": "annotations/Neovision2-Training-Heli-043.csv:000275:001",
+      "bbox_xywh_abs": [
+        170.0,
+        420.0,
+        300.0,
+        124.0
+      ],
+      "class_id": 9,
+      "class_name": "Container",
+      "context": {
+        "unmapped_policy": "drop"
+      },
+      "image_file": "images/Neovision2-Training-Heli-043/frame_000088.jpg",
+      "image_id": "Neovision2-Training-Heli-043:000088",
+      "reason": "Dropped by class mapping.",
+      "reason_code": "class_dropped_by_mapping",
+      "source_file": null,
+      "stage": "remap"
+    },
+    {
+      "annotation_id": "annotations/Neovision2-Training-Heli-043.csv:000278:001",
+      "bbox_xywh_abs": [
+        517.0,
+        471.0,
+        278.0,
+        62.0
+      ],
+      "class_id": 9,
+      "class_name": "Container",
+      "context": {
+        "unmapped_policy": "drop"
+      },
+      "image_file": "images/Neovision2-Training-Heli-043/frame_000088.jpg",
+      "image_id": "Neovision2-Training-Heli-043:000088",
+      "reason": "Dropped by class mapping.",
+      "reason_code": "class_dropped_by_mapping",
+      "source_file": null,
+      "stage": "remap"
+    },
+    {
+      "annotation_id": "annotations/Neovision2-Training-Heli-043.csv:000280:001",
+      "bbox_xywh_abs": [
+        844.0,
+        403.0,
+        298.0,
+        129.0
+      ],
+      "class_id": 9,
+      "class_name": "Container",
+      "context": {
+        "unmapped_policy": "drop"
+      },
+      "image_file": "images/Neovision2-Training-Heli-043/frame_000088.jpg",
+      "image_id": "Neovision2-Training-Heli-043:000088",
+      "reason": "Dropped by class mapping.",
+      "reason_code": "class_dropped_by_mapping",
+      "source_file": null,
+      "stage": "remap"
+    },
+    {
+      "annotation_id": "annotations/Neovision2-Training-Heli-043.csv:000285:001",
+      "bbox_xywh_abs": [
+        1169.0,
+        401.0,
+        290.0,
+        113.0
+      ],
+      "class_id": 9,
+      "class_name": "Container",
+      "context": {
+        "unmapped_policy": "drop"
+      },
+      "image_file": "images/Neovision2-Training-Heli-043/frame_000088.jpg",
+      "image_id": "Neovision2-Training-Heli-043:000088",
+      "reason": "Dropped by class mapping.",
+      "reason_code": "class_dropped_by_mapping",
+      "source_file": null,
+      "stage": "remap"
+    },
+    {
+      "annotation_id": "annotations/Neovision2-Training-Heli-043.csv:000287:001",
+      "bbox_xywh_abs": [
+        1678.0,
+        709.0,
+        242.0,
+        238.0
+      ],
+      "class_id": 9,
+      "class_name": "Container",
+      "context": {
+        "unmapped_policy": "drop"
+      },
+      "image_file": "images/Neovision2-Training-Heli-043/frame_000088.jpg",
+      "image_id": "Neovision2-Training-Heli-043:000088",
+      "reason": "Dropped by class mapping.",
+      "reason_code": "class_dropped_by_mapping",
+      "source_file": null,
+      "stage": "remap"
+    },
+    {
+      "annotation_id": "annotations/Neovision2-Training-Heli-043.csv:000527:001",
+      "bbox_xywh_abs": [
+        61.0,
+        592.0,
+        312.0,
+        73.0
+      ],
+      "class_id": 9,
+      "class_name": "Container",
+      "context": {
+        "unmapped_policy": "drop"
+      },
+      "image_file": "images/Neovision2-Training-Heli-043/frame_000144.jpg",
+      "image_id": "Neovision2-Training-Heli-043:000144",
+      "reason": "Dropped by class mapping.",
+      "reason_code": "class_dropped_by_mapping",
+      "source_file": null,
+      "stage": "remap"
+    },
+    {
+      "annotation_id": "annotations/Neovision2-Training-Heli-043.csv:000530:001",
+      "bbox_xywh_abs": [
+        429.0,
+        514.0,
+        298.0,
+        129.0
+      ],
+      "class_id": 9,
+      "class_name": "Container",
+      "context": {
+        "unmapped_policy": "drop"
+      },
+      "image_file": "images/Neovision2-Training-Heli-043/frame_000144.jpg",
+      "image_id": "Neovision2-Training-Heli-043:000144",
+      "reason": "Dropped by class mapping.",
+      "reason_code": "class_dropped_by_mapping",
+      "source_file": null,
+      "stage": "remap"
+    },
+    {
+      "annotation_id": "annotations/Neovision2-Training-Heli-043.csv:000532:001",
+      "bbox_xywh_abs": [
+        767.0,
+        509.0,
+        291.0,
+        116.0
+      ],
+      "class_id": 9,
+      "class_name": "Container",
+      "context": {
+        "unmapped_policy": "drop"
+      },
+      "image_file": "images/Neovision2-Training-Heli-043/frame_000144.jpg",
+      "image_id": "Neovision2-Training-Heli-043:000144",
+      "reason": "Dropped by class mapping.",
+      "reason_code": "class_dropped_by_mapping",
+      "source_file": null,
+      "stage": "remap"
+    },
+    {
+      "annotation_id": "annotations/Neovision2-Training-Heli-043.csv:000533:001",
+      "bbox_xywh_abs": [
+        945.0,
+        0.0,
+        158.0,
+        80.0
+      ],
+      "class_id": 9,
+      "class_name": "Container",
+      "context": {
+        "unmapped_policy": "drop"
+      },
+      "image_file": "images/Neovision2-Training-Heli-043/frame_000144.jpg",
+      "image_id": "Neovision2-Training-Heli-043:000144",
+      "reason": "Dropped by class mapping.",
+      "reason_code": "class_dropped_by_mapping",
+      "source_file": null,
+      "stage": "remap"
+    },
+    {
+      "annotation_id": "annotations/Neovision2-Training-Heli-043.csv:000534:001",
+      "bbox_xywh_abs": [
+        1057.0,
+        836.0,
+        249.0,
+        244.0
+      ],
+      "class_id": 9,
+      "class_name": "Container",
+      "context": {
+        "unmapped_policy": "drop"
+      },
+      "image_file": "images/Neovision2-Training-Heli-043/frame_000144.jpg",
+      "image_id": "Neovision2-Training-Heli-043:000144",
+      "reason": "Dropped by class mapping.",
+      "reason_code": "class_dropped_by_mapping",
+      "source_file": null,
+      "stage": "remap"
+    },
+    {
+      "annotation_id": "annotations/Neovision2-Training-Heli-043.csv:000538:001",
+      "bbox_xywh_abs": [
+        1689.0,
+        537.0,
+        174.0,
+        120.0
+      ],
+      "class_id": 9,
+      "class_name": "Container",
+      "context": {
+        "unmapped_policy": "drop"
+      },
+      "image_file": "images/Neovision2-Training-Heli-043/frame_000144.jpg",
+      "image_id": "Neovision2-Training-Heli-043:000144",
+      "reason": "Dropped by class mapping.",
+      "reason_code": "class_dropped_by_mapping",
+      "source_file": null,
+      "stage": "remap"
+    },
+    {
+      "annotation_id": "annotations/Neovision2-Training-Heli-043.csv:000539:001",
+      "bbox_xywh_abs": [
+        1563.0,
+        552.0,
+        175.0,
+        119.0
+      ],
+      "class_id": 9,
+      "class_name": "Container",
+      "context": {
+        "unmapped_policy": "drop"
+      },
+      "image_file": "images/Neovision2-Training-Heli-043/frame_000144.jpg",
+      "image_id": "Neovision2-Training-Heli-043:000144",
+      "reason": "Dropped by class mapping.",
+      "reason_code": "class_dropped_by_mapping",
+      "source_file": null,
+      "stage": "remap"
+    },
+    {
+      "annotation_id": "annotations/Neovision2-Training-Heli-043.csv:000540:001",
+      "bbox_xywh_abs": [
+        1810.0,
+        794.0,
+        110.0,
+        95.0
+      ],
+      "class_id": 9,
+      "class_name": "Container",
+      "context": {
+        "unmapped_policy": "drop"
+      },
+      "image_file": "images/Neovision2-Training-Heli-043/frame_000144.jpg",
+      "image_id": "Neovision2-Training-Heli-043:000144",
+      "reason": "Dropped by class mapping.",
+      "reason_code": "class_dropped_by_mapping",
+      "source_file": null,
+      "stage": "remap"
+    },
+    {
+      "annotation_id": "annotations/Neovision2-Training-Heli-043.csv:000541:001",
+      "bbox_xywh_abs": [
+        1810.0,
+        518.0,
+        107.0,
+        101.0
+      ],
+      "class_id": 9,
+      "class_name": "Container",
+      "context": {
+        "unmapped_policy": "drop"
+      },
+      "image_file": "images/Neovision2-Training-Heli-043/frame_000144.jpg",
+      "image_id": "Neovision2-Training-Heli-043:000144",
+      "reason": "Dropped by class mapping.",
+      "reason_code": "class_dropped_by_mapping",
+      "source_file": null,
+      "stage": "remap"
+    },
+    {
+      "annotation_id": "annotations/Neovision2-Training-Heli-043.csv:000542:001",
+      "bbox_xywh_abs": [
+        29.0,
+        639.0,
+        312.0,
+        73.0
+      ],
+      "class_id": 9,
+      "class_name": "Container",
+      "context": {
+        "unmapped_policy": "drop"
+      },
+      "image_file": "images/Neovision2-Training-Heli-043/frame_000148.jpg",
+      "image_id": "Neovision2-Training-Heli-043:000148",
+      "reason": "Dropped by class mapping.",
+      "reason_code": "class_dropped_by_mapping",
+      "source_file": null,
+      "stage": "remap"
+    },
+    {
+      "annotation_id": "annotations/Neovision2-Training-Heli-043.csv:000545:001",
+      "bbox_xywh_abs": [
+        398.0,
+        561.0,
+        298.0,
+        129.0
+      ],
+      "class_id": 9,
+      "class_name": "Container",
+      "context": {
+        "unmapped_policy": "drop"
+      },
+      "image_file": "images/Neovision2-Training-Heli-043/frame_000148.jpg",
+      "image_id": "Neovision2-Training-Heli-043:000148",
+      "reason": "Dropped by class mapping.",
+      "reason_code": "class_dropped_by_mapping",
+      "source_file": null,
+      "stage": "remap"
+    },
+    {
+      "annotation_id": "annotations/Neovision2-Training-Heli-043.csv:000547:001",
+      "bbox_xywh_abs": [
+        734.0,
+        560.0,
+        291.0,
+        116.0
+      ],
+      "class_id": 9,
+      "class_name": "Container",
+      "context": {
+        "unmapped_policy": "drop"
+      },
+      "image_file": "images/Neovision2-Training-Heli-043/frame_000148.jpg",
+      "image_id": "Neovision2-Training-Heli-043:000148",
+      "reason": "Dropped by class mapping.",
+      "reason_code": "class_dropped_by_mapping",
+      "source_file": null,
+      "stage": "remap"
+    },
+    {
+      "annotation_id": "annotations/Neovision2-Training-Heli-043.csv:000548:001",
+      "bbox_xywh_abs": [
+        884.0,
+        0.0,
+        220.0,
+        112.0
+      ],
+      "class_id": 9,
+      "class_name": "Container",
+      "context": {
+        "unmapped_policy": "drop"
+      },
+      "image_file": "images/Neovision2-Training-Heli-043/frame_000148.jpg",
+      "image_id": "Neovision2-Training-Heli-043:000148",
+      "reason": "Dropped by class mapping.",
+      "reason_code": "class_dropped_by_mapping",
+      "source_file": null,
+      "stage": "remap"
+    },
+    {
+      "annotation_id": "annotations/Neovision2-Training-Heli-043.csv:000549:001",
+      "bbox_xywh_abs": [
+        1037.0,
+        884.0,
+        199.0,
+        196.0
+      ],
+      "class_id": 9,
+      "class_name": "Container",
+      "context": {
+        "unmapped_policy": "drop"
+      },
+      "image_file": "images/Neovision2-Training-Heli-043/frame_000148.jpg",
+      "image_id": "Neovision2-Training-Heli-043:000148",
+      "reason": "Dropped by class mapping.",
+      "reason_code": "class_dropped_by_mapping",
+      "source_file": null,
+      "stage": "remap"
+    },
+    {
+      "annotation_id": "annotations/Neovision2-Training-Heli-043.csv:000551:001",
+      "bbox_xywh_abs": [
+        1121.0,
+        11.0,
+        237.0,
+        83.0
+      ],
+      "class_id": 9,
+      "class_name": "Container",
+      "context": {
+        "unmapped_policy": "drop"
+      },
+      "image_file": "images/Neovision2-Training-Heli-043/frame_000148.jpg",
+      "image_id": "Neovision2-Training-Heli-043:000148",
+      "reason": "Dropped by class mapping.",
+      "reason_code": "class_dropped_by_mapping",
+      "source_file": null,
+      "stage": "remap"
+    },
+    {
+      "annotation_id": "annotations/Neovision2-Training-Heli-043.csv:000552:001",
+      "bbox_xywh_abs": [
+        1395.0,
+        0.0,
+        202.0,
+        63.0
+      ],
+      "class_id": 9,
+      "class_name": "Container",
+      "context": {
+        "unmapped_policy": "drop"
+      },
+      "image_file": "images/Neovision2-Training-Heli-043/frame_000148.jpg",
+      "image_id": "Neovision2-Training-Heli-043:000148",
+      "reason": "Dropped by class mapping.",
+      "reason_code": "class_dropped_by_mapping",
+      "source_file": null,
+      "stage": "remap"
+    },
+    {
+      "annotation_id": "annotations/Neovision2-Training-Heli-043.csv:000554:001",
+      "bbox_xywh_abs": [
+        1647.0,
+        579.0,
+        174.0,
+        120.0
+      ],
+      "class_id": 9,
+      "class_name": "Container",
+      "context": {
+        "unmapped_policy": "drop"
+      },
+      "image_file": "images/Neovision2-Training-Heli-043/frame_000148.jpg",
+      "image_id": "Neovision2-Training-Heli-043:000148",
+      "reason": "Dropped by class mapping.",
+      "reason_code": "class_dropped_by_mapping",
+      "source_file": null,
+      "stage": "remap"
+    },
+    {
+      "annotation_id": "annotations/Neovision2-Training-Heli-043.csv:000555:001",
+      "bbox_xywh_abs": [
+        1517.0,
+        592.0,
+        180.0,
+        122.0
+      ],
+      "class_id": 9,
+      "class_name": "Container",
+      "context": {
+        "unmapped_policy": "drop"
+      },
+      "image_file": "images/Neovision2-Training-Heli-043/frame_000148.jpg",
+      "image_id": "Neovision2-Training-Heli-043:000148",
+      "reason": "Dropped by class mapping.",
+      "reason_code": "class_dropped_by_mapping",
+      "source_file": null,
+      "stage": "remap"
+    },
+    {
+      "annotation_id": "annotations/Neovision2-Training-Heli-043.csv:000556:001",
+      "bbox_xywh_abs": [
+        1686.0,
+        0.0,
+        104.0,
+        47.0
+      ],
+      "class_id": 9,
+      "class_name": "Container",
+      "context": {
+        "unmapped_policy": "drop"
+      },
+      "image_file": "images/Neovision2-Training-Heli-043/frame_000148.jpg",
+      "image_id": "Neovision2-Training-Heli-043:000148",
+      "reason": "Dropped by class mapping.",
+      "reason_code": "class_dropped_by_mapping",
+      "source_file": null,
+      "stage": "remap"
+    },
+    {
+      "annotation_id": "annotations/Neovision2-Training-Heli-043.csv:000557:001",
+      "bbox_xywh_abs": [
+        1775.0,
+        824.0,
+        145.0,
+        125.0
+      ],
+      "class_id": 9,
+      "class_name": "Container",
+      "context": {
+        "unmapped_policy": "drop"
+      },
+      "image_file": "images/Neovision2-Training-Heli-043/frame_000148.jpg",
+      "image_id": "Neovision2-Training-Heli-043:000148",
+      "reason": "Dropped by class mapping.",
+      "reason_code": "class_dropped_by_mapping",
+      "source_file": null,
+      "stage": "remap"
+    },
+    {
+      "annotation_id": "annotations/Neovision2-Training-Heli-043.csv:000558:001",
+      "bbox_xywh_abs": [
+        1768.0,
+        562.0,
+        149.0,
+        105.0
+      ],
+      "class_id": 9,
+      "class_name": "Container",
+      "context": {
+        "unmapped_policy": "drop"
+      },
+      "image_file": "images/Neovision2-Training-Heli-043/frame_000148.jpg",
+      "image_id": "Neovision2-Training-Heli-043:000148",
+      "reason": "Dropped by class mapping.",
+      "reason_code": "class_dropped_by_mapping",
+      "source_file": null,
+      "stage": "remap"
+    },
+    {
+      "annotation_id": "annotations/Neovision2-Training-Heli-043.csv:000560:001",
+      "bbox_xywh_abs": [
+        1.0,
+        690.0,
+        271.0,
+        76.0
+      ],
+      "class_id": 9,
+      "class_name": "Container",
+      "context": {
+        "unmapped_policy": "drop"
+      },
+      "image_file": "images/Neovision2-Training-Heli-043/frame_000152.jpg",
+      "image_id": "Neovision2-Training-Heli-043:000152",
+      "reason": "Dropped by class mapping.",
+      "reason_code": "class_dropped_by_mapping",
+      "source_file": null,
+      "stage": "remap"
+    },
+    {
+      "annotation_id": "annotations/Neovision2-Training-Heli-043.csv:000562:001",
+      "bbox_xywh_abs": [
+        329.0,
+        613.0,
+        298.0,
+        129.0
+      ],
+      "class_id": 9,
+      "class_name": "Container",
+      "context": {
+        "unmapped_policy": "drop"
+      },
+      "image_file": "images/Neovision2-Training-Heli-043/frame_000152.jpg",
+      "image_id": "Neovision2-Training-Heli-043:000152",
+      "reason": "Dropped by class mapping.",
+      "reason_code": "class_dropped_by_mapping",
+      "source_file": null,
+      "stage": "remap"
+    },
+    {
+      "annotation_id": "annotations/Neovision2-Training-Heli-043.csv:000564:001",
+      "bbox_xywh_abs": [
+        661.0,
+        592.0,
+        299.0,
+        138.0
+      ],
+      "class_id": 9,
+      "class_name": "Container",
+      "context": {
+        "unmapped_policy": "drop"
+      },
+      "image_file": "images/Neovision2-Training-Heli-043/frame_000152.jpg",
+      "image_id": "Neovision2-Training-Heli-043:000152",
+      "reason": "Dropped by class mapping.",
+      "reason_code": "class_dropped_by_mapping",
+      "source_file": null,
+      "stage": "remap"
+    },
+    {
+      "annotation_id": "annotations/Neovision2-Training-Heli-043.csv:000565:001",
+      "bbox_xywh_abs": [
+        680.0,
+        0.0,
+        179.0,
+        83.0
+      ],
+      "class_id": 9,
+      "class_name": "Container",
+      "context": {
+        "unmapped_policy": "drop"
+      },
+      "image_file": "images/Neovision2-Training-Heli-043/frame_000152.jpg",
+      "image_id": "Neovision2-Training-Heli-043:000152",
+      "reason": "Dropped by class mapping.",
+      "reason_code": "class_dropped_by_mapping",
+      "source_file": null,
+      "stage": "remap"
+    },
+    {
+      "annotation_id": "annotations/Neovision2-Training-Heli-043.csv:000566:001",
+      "bbox_xywh_abs": [
+        784.0,
+        35.0,
+        246.0,
+        125.0
+      ],
+      "class_id": 9,
+      "class_name": "Container",
+      "context": {
+        "unmapped_policy": "drop"
+      },
+      "image_file": "images/Neovision2-Training-Heli-043/frame_000152.jpg",
+      "image_id": "Neovision2-Training-Heli-043:000152",
+      "reason": "Dropped by class mapping.",
+      "reason_code": "class_dropped_by_mapping",
+      "source_file": null,
+      "stage": "remap"
+    },
+    {
+      "annotation_id": "annotations/Neovision2-Training-Heli-043.csv:000567:001",
+      "bbox_xywh_abs": [
+        963.0,
+        0.0,
+        127.0,
+        52.0
+      ],
+      "class_id": 9,
+      "class_name": "Container",
+      "context": {
+        "unmapped_policy": "drop"
+      },
+      "image_file": "images/Neovision2-Training-Heli-043/frame_000152.jpg",
+      "image_id": "Neovision2-Training-Heli-043:000152",
+      "reason": "Dropped by class mapping.",
+      "reason_code": "class_dropped_by_mapping",
+      "source_file": null,
+      "stage": "remap"
+    },
+    {
+      "annotation_id": "annotations/Neovision2-Training-Heli-043.csv:000568:001",
+      "bbox_xywh_abs": [
+        988.0,
+        938.0,
+        145.0,
+        142.0
+      ],
+      "class_id": 9,
+      "class_name": "Container",
+      "context": {
+        "unmapped_policy": "drop"
+      },
+      "image_file": "images/Neovision2-Training-Heli-043/frame_000152.jpg",
+      "image_id": "Neovision2-Training-Heli-043:000152",
+      "reason": "Dropped by class mapping.",
+      "reason_code": "class_dropped_by_mapping",
+      "source_file": null,
+      "stage": "remap"
+    },
+    {
+      "annotation_id": "annotations/Neovision2-Training-Heli-043.csv:000570:001",
+      "bbox_xywh_abs": [
+        1047.0,
+        59.0,
+        237.0,
+        84.0
+      ],
+      "class_id": 9,
+      "class_name": "Container",
+      "context": {
+        "unmapped_policy": "drop"
+      },
+      "image_file": "images/Neovision2-Training-Heli-043/frame_000152.jpg",
+      "image_id": "Neovision2-Training-Heli-043:000152",
+      "reason": "Dropped by class mapping.",
+      "reason_code": "class_dropped_by_mapping",
+      "source_file": null,
+      "stage": "remap"
+    },
+    {
+      "annotation_id": "annotations/Neovision2-Training-Heli-043.csv:000571:001",
+      "bbox_xywh_abs": [
+        1309.0,
+        37.0,
+        218.0,
+        68.0
+      ],
+      "class_id": 9,
+      "class_name": "Container",
+      "context": {
+        "unmapped_policy": "drop"
+      },
+      "image_file": "images/Neovision2-Training-Heli-043/frame_000152.jpg",
+      "image_id": "Neovision2-Training-Heli-043:000152",
+      "reason": "Dropped by class mapping.",
+      "reason_code": "class_dropped_by_mapping",
+      "source_file": null,
+      "stage": "remap"
+    },
+    {
+      "annotation_id": "annotations/Neovision2-Training-Heli-043.csv:000573:001",
+      "bbox_xywh_abs": [
+        1577.0,
+        0.0,
+        202.0,
+        91.0
+      ],
+      "class_id": 9,
+      "class_name": "Container",
+      "context": {
+        "unmapped_policy": "drop"
+      },
+      "image_file": "images/Neovision2-Training-Heli-043/frame_000152.jpg",
+      "image_id": "Neovision2-Training-Heli-043:000152",
+      "reason": "Dropped by class mapping.",
+      "reason_code": "class_dropped_by_mapping",
+      "source_file": null,
+      "stage": "remap"
+    },
+    {
+      "annotation_id": "annotations/Neovision2-Training-Heli-043.csv:000574:001",
+      "bbox_xywh_abs": [
+        1569.0,
+        625.0,
+        174.0,
+        120.0
+      ],
+      "class_id": 9,
+      "class_name": "Container",
+      "context": {
+        "unmapped_policy": "drop"
+      },
+      "image_file": "images/Neovision2-Training-Heli-043/frame_000152.jpg",
+      "image_id": "Neovision2-Training-Heli-043:000152",
+      "reason": "Dropped by class mapping.",
+      "reason_code": "class_dropped_by_mapping",
+      "source_file": null,
+      "stage": "remap"
+    },
+    {
+      "annotation_id": "annotations/Neovision2-Training-Heli-043.csv:000575:001",
+      "bbox_xywh_abs": [
+        1441.0,
+        638.0,
+        180.0,
+        122.0
+      ],
+      "class_id": 9,
+      "class_name": "Container",
+      "context": {
+        "unmapped_policy": "drop"
+      },
+      "image_file": "images/Neovision2-Training-Heli-043/frame_000152.jpg",
+      "image_id": "Neovision2-Training-Heli-043:000152",
+      "reason": "Dropped by class mapping.",
+      "reason_code": "class_dropped_by_mapping",
+      "source_file": null,
+      "stage": "remap"
+    },
+    {
+      "annotation_id": "annotations/Neovision2-Training-Heli-043.csv:000576:001",
+      "bbox_xywh_abs": [
+        1692.0,
+        841.0,
+        192.0,
+        165.0
+      ],
+      "class_id": 9,
+      "class_name": "Container",
+      "context": {
+        "unmapped_policy": "drop"
+      },
+      "image_file": "images/Neovision2-Training-Heli-043/frame_000152.jpg",
+      "image_id": "Neovision2-Training-Heli-043:000152",
+      "reason": "Dropped by class mapping.",
+      "reason_code": "class_dropped_by_mapping",
+      "source_file": null,
+      "stage": "remap"
+    },
+    {
+      "annotation_id": "annotations/Neovision2-Training-Heli-043.csv:000577:001",
+      "bbox_xywh_abs": [
+        1803.0,
+        583.0,
+        117.0,
+        146.0
+      ],
+      "class_id": 9,
+      "class_name": "Container",
+      "context": {
+        "unmapped_policy": "drop"
+      },
+      "image_file": "images/Neovision2-Training-Heli-043/frame_000152.jpg",
+      "image_id": "Neovision2-Training-Heli-043:000152",
+      "reason": "Dropped by class mapping.",
+      "reason_code": "class_dropped_by_mapping",
+      "source_file": null,
+      "stage": "remap"
+    },
+    {
+      "annotation_id": "annotations/Neovision2-Training-Heli-043.csv:000578:001",
+      "bbox_xywh_abs": [
+        1810.0,
+        815.0,
+        110.0,
+        135.0
+      ],
+      "class_id": 9,
+      "class_name": "Container",
+      "context": {
+        "unmapped_policy": "drop"
+      },
+      "image_file": "images/Neovision2-Training-Heli-043/frame_000152.jpg",
+      "image_id": "Neovision2-Training-Heli-043:000152",
+      "reason": "Dropped by class mapping.",
+      "reason_code": "class_dropped_by_mapping",
+      "source_file": null,
+      "stage": "remap"
+    },
+    {
+      "annotation_id": "annotations/Neovision2-Training-Heli-043.csv:000579:001",
+      "bbox_xywh_abs": [
+        1678.0,
+        599.0,
+        176.0,
+        123.0
+      ],
+      "class_id": 9,
+      "class_name": "Container",
+      "context": {
+        "unmapped_policy": "drop"
+      },
+      "image_file": "images/Neovision2-Training-Heli-043/frame_000152.jpg",
+      "image_id": "Neovision2-Training-Heli-043:000152",
+      "reason": "Dropped by class mapping.",
+      "reason_code": "class_dropped_by_mapping",
+      "source_file": null,
+      "stage": "remap"
+    },
+    {
+      "annotation_id": "annotations/Neovision2-Training-Heli-043.csv:000580:001",
+      "bbox_xywh_abs": [
+        1791.0,
+        6.0,
+        129.0,
+        53.0
+      ],
+      "class_id": 9,
+      "class_name": "Container",
+      "context": {
+        "unmapped_policy": "drop"
+      },
+      "image_file": "images/Neovision2-Training-Heli-043/frame_000152.jpg",
+      "image_id": "Neovision2-Training-Heli-043:000152",
+      "reason": "Dropped by class mapping.",
+      "reason_code": "class_dropped_by_mapping",
+      "source_file": null,
+      "stage": "remap"
+    }
+  ],
+  "run_id": "convert-a9371fac9097"
+}

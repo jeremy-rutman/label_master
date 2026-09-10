@@ -11,6 +11,7 @@ import typer
 from label_master.core.domain.entities import SourceFormat
 from label_master.core.domain.policies import (
     InferencePolicy,
+    OutOfFrameBBoxPolicy,
     OversizeImageAction,
     UnmappedPolicy,
     ValidationMode,
@@ -31,14 +32,14 @@ from label_master.core.services.convert_service import (
 from label_master.core.services.import_service import import_dataset
 from label_master.core.services.infer_service import infer_format
 from label_master.core.services.validate_service import validate_dataset
-from label_master.infra.config import load_mapping_file
+from label_master.infra.config import is_name_based_mapping_file, load_mapping_file, load_name_based_mapping
 from label_master.infra.logging import setup_logging
 from label_master.infra.reporting import generate_run_id, persist_run_artifacts
 from label_master.reports.schemas import RunConfigModel, WarningEventModel
 
 app = typer.Typer(help="Bounding-box annotation conversion toolkit")
 
-RunSrcFormat = Literal["auto", "coco", "custom", "kitware", "matlab_ground_truth", "voc", "video_bbox", "yolo"]
+RunSrcFormat = Literal["auto", "cityscapes", "coco", "custom", "kitware", "matlab_ground_truth", "voc", "video_bbox", "yolo"]
 RunDstFormat = Literal["coco", "yolo"]
 ProviderName = Literal["kaggle", "roboflow", "github", "direct_url"]
 
@@ -242,6 +243,10 @@ def convert_command(  # noqa: PLR0913
     max_image_longest_edge_px: int = typer.Option(0, "--max-image-longest-edge-px", min=0),
     oversize_image_action: str = typer.Option("ignore", "--oversize-image-action"),
     force: bool = typer.Option(False, "--force"),
+    flatten_output_layout: bool = typer.Option(False, "--flatten-output-layout/--no-flatten-output-layout"),
+    class_id_override: list[str] = typer.Option([], "--class-id-override"),
+    drop_frames_with_class: list[str] = typer.Option([], "--drop-frames-with-class"),
+    out_of_frame_bbox_policy: str = typer.Option("correct", "--out-of-frame-bbox-policy"),
 ) -> None:
     run_id = generate_run_id("convert")
 
@@ -252,7 +257,38 @@ def convert_command(  # noqa: PLR0913
             raise ConfigurationError("--dst must be one of coco|yolo")
 
         policy = UnmappedPolicy(unmapped_policy)
-        class_map = load_mapping_file(map_path) if map_path else {}
+
+        int_class_map: dict[int, int | None] = {}
+        name_class_map: dict[str, str | None] = {}
+        class_id_overrides: dict[str, int] = {}
+        drop_frames_with_class_names: frozenset[str] = frozenset()
+
+        if map_path:
+            if is_name_based_mapping_file(map_path):
+                nbm = load_name_based_mapping(map_path)
+                name_class_map = nbm.name_class_map
+                class_id_overrides = dict(nbm.class_id_overrides)
+                drop_frames_with_class_names = nbm.drop_frames_with_class_names
+            else:
+                int_class_map = load_mapping_file(map_path)
+
+        for override in class_id_override:
+            if ":" not in override:
+                raise ConfigurationError(f"--class-id-override must be 'name:id', got: {override!r}")
+            name_part, id_part = override.split(":", 1)
+            try:
+                class_id_overrides[name_part.strip()] = int(id_part.strip())
+            except ValueError as exc:
+                raise ConfigurationError(f"--class-id-override id must be an integer: {id_part!r}") from exc
+
+        drop_frames_with_class_names |= frozenset(drop_frames_with_class)
+
+        try:
+            oofb_policy = OutOfFrameBBoxPolicy(out_of_frame_bbox_policy)
+        except ValueError as exc:
+            raise ConfigurationError(
+                f"--out-of-frame-bbox-policy must be one of correct|warn|ignore|drop, got: {out_of_frame_bbox_policy!r}"
+            ) from exc
 
         result = execute_conversion(
             ConvertRequest(
@@ -261,7 +297,10 @@ def convert_command(  # noqa: PLR0913
                 output_path=output_path,
                 src_format=source_format,
                 dst_format=destination_format,
-                class_map=class_map,
+                class_map=int_class_map,
+                name_class_map=name_class_map,
+                class_id_overrides=class_id_overrides,
+                drop_frames_with_class_names=drop_frames_with_class_names,
                 unmapped_policy=policy,
                 dry_run=dry_run,
                 force_infer=force,
@@ -272,6 +311,8 @@ def convert_command(  # noqa: PLR0913
                 min_image_longest_edge_px=min_image_longest_edge_px,
                 max_image_longest_edge_px=max_image_longest_edge_px,
                 oversize_image_action=OversizeImageAction(oversize_image_action),
+                flatten_output_layout=flatten_output_layout,
+                out_of_frame_bbox_policy=oofb_policy,
             )
         )
     except ValidationError as exc:
@@ -310,6 +351,7 @@ def convert_command(  # noqa: PLR0913
         min_image_longest_edge_px=min_image_longest_edge_px,
         max_image_longest_edge_px=max_image_longest_edge_px,
         oversize_image_action=oversize_image_action,  # type: ignore[arg-type]
+        out_of_frame_bbox_policy=oofb_policy.value,  # type: ignore[arg-type]
         created_at=datetime.now(UTC),
     )
     persist_run_artifacts(

@@ -9,6 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 class SourceFormat(str, Enum):
     AUTO = "auto"
     COCO = "coco"
+    CITYSCAPES = "cityscapes"
     CUSTOM = "custom"
     KITWARE = "kitware"
     MATLAB_GROUND_TRUTH = "matlab_ground_truth"

@@ -1,19 +1,35 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
 
-import os
-import re
 import json
-import glob
-from collections import defaultdict
-                
-          
+import os
+
+PATH_TO_GT_FILES: str | None = None
+OUT_PATH: str | None = None
+CURRENT_IMAGE_NAME_TEMPLATE = "{img_id}.jpg"
+
+
+def _require_config_value(name: str, configured_value: str | None) -> str:
+    if configured_value:
+        return configured_value
+    env_value = os.environ.get(name)
+    if env_value:
+        return env_value
+    raise RuntimeError(f"Set {name} before running this script.")
+
+
+def _current_image_name(img_id: int) -> str:
+    template = os.environ.get("CURRENT_IMAGE_NAME_TEMPLATE", CURRENT_IMAGE_NAME_TEMPLATE)
+    return template.format(img_id=img_id)
+
 if __name__ == '__main__':
 
-    gt_dir = PATH_TO_GT_FILES #has to be adapted
+    gt_dir = _require_config_value('PATH_TO_GT_FILES', PATH_TO_GT_FILES)
+    if not os.path.isdir(gt_dir):
+        raise RuntimeError(f'Ground-truth directory does not exist: {gt_dir}')
     gt_list = os.listdir(gt_dir)
     
-    out_dir = OUT_PATH #has to be adapted
+    out_dir = _require_config_value('OUT_PATH', OUT_PATH)
+    os.makedirs(out_dir, exist_ok=True)
     
     for gt in gt_list:
         if gt.endswith('.txt'):
@@ -43,7 +59,7 @@ if __name__ == '__main__':
                 
             ann_cnt = 0         
                         
-            with open(gt_file, 'r') as ann:
+            with open(gt_file) as ann:
                 line = ann.readline()  
                 while line:
                     params = line.split(' ')
@@ -54,7 +70,7 @@ if __name__ == '__main__':
                     img_info['id'] = img_id
                     img_info['width'] = width
                     img_info['height'] = height
-                    img_info['file_name'] = CURRENT_IMAGE_NAME #has to be adapted for instance for img_id = 0 image_name = 0.jpg
+                    img_info['file_name'] = _current_image_name(img_id)
                     out_data['images'].append(img_info)
                 
                     for idx in range(obj_cnt):
